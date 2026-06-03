@@ -19,6 +19,7 @@ from typing import Optional, List
 from contextlib import asynccontextmanager
 
 from passlib.context import CryptContext
+import ssl
 
 # =====================================================
 # CONFIG
@@ -41,6 +42,13 @@ DB_CONFIG = {
     "maxsize": 20,
 }
 
+if os.getenv("DB_HOST") and "aiven" in os.getenv("DB_HOST", ""):
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    DB_CONFIG["ssl"] = ssl_ctx
+
+
 # =====================================================
 # APP LIFESPAN (Connection Pool)
 # =====================================================
@@ -49,29 +57,25 @@ pool: aiomysql.Pool = None # type: ignore
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Connection pool yaratish va yopish"""
     global pool
-    pool = await aiomysql.create_pool(
-        host=DB_CONFIG["host"],
-        port=DB_CONFIG["port"],
-        user=DB_CONFIG["user"],
-        password=DB_CONFIG["password"],
-        db=DB_CONFIG["db"],
-        autocommit=DB_CONFIG["autocommit"],
-        minsize=DB_CONFIG["minsize"],
-        maxsize=DB_CONFIG["maxsize"],
-    )
-    print("✓ Database connection pool yaratildi")
+    pool_config = {
+        "host": DB_CONFIG["host"],
+        "port": DB_CONFIG["port"],
+        "user": DB_CONFIG["user"],
+        "password": DB_CONFIG["password"],
+        "db": DB_CONFIG["db"],
+        "autocommit": DB_CONFIG["autocommit"],
+        "minsize": DB_CONFIG["minsize"],
+        "maxsize": DB_CONFIG["maxsize"],
+    }
+    if "ssl" in DB_CONFIG:
+        pool_config["ssl"] = DB_CONFIG["ssl"]
+    pool = await aiomysql.create_pool(**pool_config)
+    print("Database connection pool yaratildi")
     yield
     pool.close()
     await pool.wait_closed()
-    print("🔒 Database connection pool yopildi")
 
-app = FastAPI(
-    title="Sartaroshxona API",
-    version="3.0.0",
-    lifespan=lifespan,
-)
 
 # =====================================================
 # CORS
