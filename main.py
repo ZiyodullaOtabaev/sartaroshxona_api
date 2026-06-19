@@ -72,6 +72,30 @@ async def lifespan(app: FastAPI):
         pool_config["ssl"] = DB_CONFIG["ssl"]
     pool = await aiomysql.create_pool(**pool_config)
     print("Database connection pool yaratildi")
+    # Chat (messages) jadvalini avtomatik yaratish (idempotent)
+    try:
+        _c = await pool.acquire()
+        try:
+            async with _c.cursor() as _cur:
+                await _cur.execute(
+                    "CREATE TABLE IF NOT EXISTS messages ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "sender_id INT NOT NULL, "
+                    "receiver_id INT NOT NULL, "
+                    "body TEXT NOT NULL, "
+                    "is_read BOOLEAN DEFAULT FALSE, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "INDEX idx_pair (sender_id, receiver_id), "
+                    "FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE"
+                    ")"
+                )
+                await _c.commit()
+            print("messages jadvali tayyor")
+        finally:
+            pool.release(_c)
+    except Exception as e:
+        print(f"messages jadvalini yaratishda ogohlantirish: {e}")
     yield
     pool.close()
     await pool.wait_closed()
@@ -291,6 +315,16 @@ class JoinRequest(BaseModel):
 
 class InvitationResponse(BaseModel):
     accept: bool
+
+class ChangePassword(BaseModel):
+    user_id: int
+    old_password: str
+    new_password: str
+
+class MessageCreate(BaseModel):
+    sender_id: int
+    receiver_id: int
+    body: str
 
 # =====================================================
 # AUTH ENDPOINTS
@@ -1268,6 +1302,133 @@ async def admin_verify_barber(barber_id: int, approve: bool = True, x_admin_key:
                 await cur.execute("INSERT INTO notifications (user_id, title, body, type) VALUES (%s,%s,%s,'system')", (b["user_id"], title, body))
             await conn.commit()
             return {"status": "success", "verification_status": new_status}
+    finally:
+        await release_conn(conn)
+
+
+@app.post("/change_password")
+async def change_password(data: ChangePassword):
+    """Foydalanuvchi parolini o'zgartirish (eski parolni tekshirib)"""
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Yangi parol kamida 6 belgidan iborat bo'lishi kerak")
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT password_hash FROM users WHERE id=%s", (data.user_id,))
+            row = await cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+            if not pwd_context.verify(data.old_password, row["password_hash"]):
+                raise HTTPException(status_code=401, detail="Joriy parol noto'g'ri")
+            new_hash = hash_password(data.new_password)
+            await cur.execute("UPDATE users SET password_hash=%s WHERE id=%s", (new_hash, data.user_id))
+            await conn.commit()
+            return {"status": "success"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await release_conn(conn)
+
+
+# =====================================================
+# CHAT / XABARLAR
+# =====================================================
+
+@app.post("/send_message")
+async def send_message(data: MessageCreate):
+    """Bir foydalanuvchidan boshqasiga xabar yuborish"""
+    if not data.body or not data.body.strip():
+        raise HTTPException(status_code=400, detail="Xabar bo'sh bo'lishi mumkin emas")
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "INSERT INTO messages (sender_id, receiver_id, body) VALUES (%s,%s,%s)",
+                (data.sender_id, data.receiver_id, data.body.strip()),
+            )
+            msg_id = cur.lastrowid
+            await cur.execute("SELECT id, sender_id, receiver_id, body, is_read, created_at FROM messages WHERE id=%s", (msg_id,))
+            row = await cur.fetchone()
+            await conn.commit()
+            d = dict(row)
+            if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+                d["created_at"] = d["created_at"].isoformat()
+            return {"status": "success", "message": d}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await release_conn(conn)
+
+
+@app.get("/messages/{user_id}/{other_id}")
+async def get_messages(user_id: int, other_id: int):
+    """Ikki foydalanuvchi o'rtasidagi yozishmalar. Kelgan xabarlar o'qilgan deb belgilanadi."""
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT id, sender_id, receiver_id, body, is_read, created_at FROM messages "
+                "WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) "
+                "ORDER BY created_at ASC, id ASC",
+                (user_id, other_id, other_id, user_id),
+            )
+            rows = []
+            for r in await cur.fetchall():
+                d = dict(r)
+                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+                    d["created_at"] = d["created_at"].isoformat()
+                rows.append(d)
+            # other_id -> user_id yo'nalishidagi xabarlarni o'qilgan deb belgilash
+            await cur.execute(
+                "UPDATE messages SET is_read=1 WHERE sender_id=%s AND receiver_id=%s AND is_read=0",
+                (other_id, user_id),
+            )
+            await conn.commit()
+            return {"messages": rows}
+    finally:
+        await release_conn(conn)
+
+
+@app.get("/conversations/{user_id}")
+async def get_conversations(user_id: int):
+    """Foydalanuvchining suhbatlari ro'yxati (har bir hamsuhbat + oxirgi xabar + o'qilmaganlar soni)"""
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT m.id, m.sender_id, m.receiver_id, m.body, m.is_read, m.created_at, "
+                "CASE WHEN m.sender_id=%s THEN m.receiver_id ELSE m.sender_id END AS partner_id "
+                "FROM messages m "
+                "WHERE m.sender_id=%s OR m.receiver_id=%s "
+                "ORDER BY m.created_at DESC, m.id DESC",
+                (user_id, user_id, user_id),
+            )
+            all_msgs = await cur.fetchall()
+            convos = {}
+            for r in all_msgs:
+                pid = r["partner_id"]
+                if pid not in convos:
+                    last = dict(r)
+                    if last.get("created_at") and hasattr(last["created_at"], "isoformat"):
+                        last["created_at"] = last["created_at"].isoformat()
+                    convos[pid] = {"partner_id": pid, "last_message": last["body"], "last_time": last["created_at"], "unread": 0}
+                # o'qilmagan: menga kelgan va o'qilmagan
+                if r["receiver_id"] == user_id and not r["is_read"]:
+                    convos[pid]["unread"] += 1
+            partner_ids = list(convos.keys())
+            if partner_ids:
+                fmt = ",".join(["%s"] * len(partner_ids))
+                await cur.execute(f"SELECT id, full_name FROM users WHERE id IN ({fmt})", partner_ids)
+                names = {u["id"]: u["full_name"] for u in await cur.fetchall()}
+                for pid in convos:
+                    convos[pid]["partner_name"] = names.get(pid, "Foydalanuvchi")
+            return {"conversations": list(convos.values())}
     finally:
         await release_conn(conn)
 
