@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -26,6 +26,7 @@ from passlib.context import CryptContext
 # =====================================================
 
 SECRET_KEY = os.getenv("SECRET_KEY", "sartaroshxona-super-secret-key-2025!@#")
+ADMIN_KEY = os.getenv("ADMIN_KEY", "sartaroshxona-admin-2025")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
@@ -318,13 +319,18 @@ async def register(user: UserRegister):
                 await cur.execute("INSERT INTO salons (owner_id, name, address, phone, lat, lng, description) VALUES (%s,%s,%s,%s,%s,%s,%s)", (user_id, salon_name, user.salon_address or "", user.phone, user.lat, user.lng, user.bio or ""))
                 salon_id = cur.lastrowid
                 if user.also_barber:
-                    await cur.execute("INSERT INTO barbers (user_id, salon_id, name, experience, phone, specialization, bio, lat, lng, rating, total_reviews, district) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,5.0,0,'Toshkent')", (user_id, salon_id, user.full_name, user.experience or "", user.phone, user.specialization or "", user.bio or "", user.lat, user.lng))
+                    await cur.execute("INSERT INTO barbers (user_id, salon_id, name, experience, phone, specialization, bio, lat, lng, rating, total_reviews, district, verification_status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,5.0,0,'Toshkent','approved')", (user_id, salon_id, user.full_name, user.experience or "", user.phone, user.specialization or "", user.bio or "", user.lat, user.lng))
                     barber_id = cur.lastrowid
                     for day in range(1, 7):
                         await cur.execute("INSERT INTO barber_working_days (barber_id, day_of_week, is_working) VALUES (%s,%s,1)", (barber_id, day))
             await conn.commit()
             token = create_access_token({"user_id": user_id, "role": user.role, "email": user.email})
-            return {"status": "success", "user_id": user_id, "barber_id": barber_id, "salon_id": salon_id, "token": token}
+            verification = None
+            if user.role == "barber":
+                verification = "pending"
+            elif user.role == "owner" and user.also_barber:
+                verification = "approved"
+            return {"status": "success", "user_id": user_id, "barber_id": barber_id, "salon_id": salon_id, "verification_status": verification, "token": token}
     except HTTPException:
         raise
     except Exception as e:
@@ -338,7 +344,7 @@ async def login(user: UserLogin):
     conn = await get_conn()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute("SELECT u.id, u.full_name, u.email, u.password_hash, u.role, u.phone, u.loyalty_points, b.id as barber_id, b.salon_id as barber_salon_id, b.is_online, b.rating, b.specialization, b.bio, b.avatar_url, b.working_hours_start, b.working_hours_end, s.id as owned_salon_id, s.name as salon_name FROM users u LEFT JOIN barbers b ON u.id = b.user_id LEFT JOIN salons s ON u.id = s.owner_id WHERE u.email=%s", (user.email,))
+            await cur.execute("SELECT u.id, u.full_name, u.email, u.password_hash, u.role, u.phone, u.loyalty_points, b.id as barber_id, b.salon_id as barber_salon_id, b.is_online, b.rating, b.specialization, b.bio, b.avatar_url, b.working_hours_start, b.working_hours_end, b.verification_status, s.id as owned_salon_id, s.name as salon_name FROM users u LEFT JOIN barbers b ON u.id = b.user_id LEFT JOIN salons s ON u.id = s.owner_id WHERE u.email=%s", (user.email,))
             db_user = await cur.fetchone()
             if not db_user:
                 raise HTTPException(status_code=401, detail="Email yoki parol noto'g'ri")
@@ -381,7 +387,7 @@ async def get_nearby_barbers(user_lat: float, user_lng: float, radius_km: float 
     conn = await get_conn()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute("SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, phone, is_online, avatar_url, bio, working_hours_start, working_hours_end FROM barbers WHERE lat IS NOT NULL AND lng IS NOT NULL")
+            await cur.execute("SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, phone, is_online, avatar_url, bio, working_hours_start, working_hours_end FROM barbers WHERE lat IS NOT NULL AND lng IS NOT NULL AND verification_status='approved'")
             barbers = await cur.fetchall()
             result = []
             for b in barbers:
@@ -402,7 +408,7 @@ async def get_all_barbers(user_lat: float = 41.3111, user_lng: float = 69.2797):
     conn = await get_conn()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute("SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, phone, is_online, avatar_url, bio FROM barbers WHERE lat IS NOT NULL AND lng IS NOT NULL")
+            await cur.execute("SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, phone, is_online, avatar_url, bio FROM barbers WHERE lat IS NOT NULL AND lng IS NOT NULL AND verification_status='approved'")
             barbers = await cur.fetchall()
             result = []
             for b in barbers:
@@ -419,7 +425,7 @@ async def search_barbers(query: str):
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             like = f"%{query}%"
-            await cur.execute("SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, phone, is_online, avatar_url, bio FROM barbers WHERE name LIKE %s OR district LIKE %s OR specialization LIKE %s", (like, like, like))
+            await cur.execute("SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, phone, is_online, avatar_url, bio FROM barbers WHERE verification_status='approved' AND (name LIKE %s OR district LIKE %s OR specialization LIKE %s)", (like, like, like))
             result = await cur.fetchall()
             return [dict(b) for b in result]
     finally:
@@ -1129,7 +1135,7 @@ async def respond_invitation(invitation_id: int, data: InvitationResponse, auth=
             new_status = "accepted" if data.accept else "rejected"
             await cur.execute("UPDATE salon_invitations SET status=%s, responded_at=NOW() WHERE id=%s", (new_status, invitation_id))
             if data.accept:
-                await cur.execute("UPDATE barbers SET salon_id=%s WHERE id=%s", (inv["salon_id"], inv["barber_id"]))
+                await cur.execute("UPDATE barbers SET salon_id=%s, verification_status='approved' WHERE id=%s", (inv["salon_id"], inv["barber_id"]))
                 await cur.execute("UPDATE salon_invitations SET status='cancelled' WHERE barber_id=%s AND status='pending' AND id!=%s", (inv["barber_id"], invitation_id))
                 await cur.execute("INSERT INTO notifications (user_id, title, body, type) VALUES (%s,%s,%s,'system')", (inv["barber_user_id"], "Salonga qo'shildingiz", f"Siz {inv['salon_name']} jamoasiga qo'shildingiz"))
             await conn.commit()
@@ -1194,6 +1200,77 @@ async def owner_revenue_report(days: int = 7, owner=Depends(require_owner)):
             return {"salon_id": salon["id"], "days": days, "report": result}
     finally:
         await release_conn(conn)
+
+# =====================================================
+# VERIFICATION: Sartarosh tasdiqlash
+# =====================================================
+
+@app.get("/barber_status/{barber_id}")
+async def get_barber_status(barber_id: int):
+    """Sartaroshning tasdiqlash holatini qaytaradi (pending/approved/rejected)"""
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT verification_status, salon_id FROM barbers WHERE id=%s", (barber_id,))
+            row = await cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Sartarosh topilmadi")
+            return {"verification_status": row["verification_status"], "salon_id": row["salon_id"]}
+    finally:
+        await release_conn(conn)
+
+
+def _check_admin(x_admin_key: str | None):
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Admin huquqi talab qilinadi")
+
+
+@app.get("/admin/pending_barbers")
+async def admin_pending_barbers(x_admin_key: str = Header(None)):
+    """Tasdiqlanmagan (pending) sartaroshlar ro'yxati — admin uchun"""
+    _check_admin(x_admin_key)
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT b.id, b.name, b.phone, b.specialization, b.experience, b.bio, b.district, "
+                "b.avatar_url, b.created_at, u.email "
+                "FROM barbers b JOIN users u ON b.user_id=u.id "
+                "WHERE b.verification_status='pending' ORDER BY b.created_at DESC"
+            )
+            rows = []
+            for r in await cur.fetchall():
+                d = dict(r)
+                if d.get('created_at') and hasattr(d['created_at'], 'isoformat'):
+                    d['created_at'] = d['created_at'].isoformat()
+                rows.append(d)
+            return rows
+    finally:
+        await release_conn(conn)
+
+
+@app.put("/admin/verify_barber/{barber_id}")
+async def admin_verify_barber(barber_id: int, approve: bool = True, x_admin_key: str = Header(None)):
+    """Sartaroshni tasdiqlash yoki rad etish — admin uchun"""
+    _check_admin(x_admin_key)
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            new_status = "approved" if approve else "rejected"
+            await cur.execute("UPDATE barbers SET verification_status=%s WHERE id=%s", (new_status, barber_id))
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Sartarosh topilmadi")
+            await cur.execute("SELECT user_id, name FROM barbers WHERE id=%s", (barber_id,))
+            b = await cur.fetchone()
+            if b:
+                title = "Profilingiz tasdiqlandi!" if approve else "Profilingiz rad etildi"
+                body = "Endi mijozlar sizni ko'radi va navbat oladi" if approve else "Iltimos, ma'lumotlaringizni qayta tekshiring"
+                await cur.execute("INSERT INTO notifications (user_id, title, body, type) VALUES (%s,%s,%s,'system')", (b["user_id"], title, body))
+            await conn.commit()
+            return {"status": "success", "verification_status": new_status}
+    finally:
+        await release_conn(conn)
+
 
 @app.get("/")
 async def root():
