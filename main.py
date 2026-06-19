@@ -184,7 +184,16 @@ async def require_owner(credentials: HTTPAuthorizationCredentials = Depends(secu
 # =====================================================
 
 async def get_conn():
-    return await pool.acquire()
+    conn = await pool.acquire()
+    # MUHIM: autocommit=False bo'lgani uchun pool'dagi ulanish oldingi
+    # tranzaksiyaning eskirgan snapshot'ini ushlab qolishi mumkin (REPEATABLE READ).
+    # Har bir so'rovni yangi snapshot bilan boshlash uchun tranzaksiyani yopamiz —
+    # aks holda yangi qo'shilgan yozuvlar ko'rinmay 404 beradi.
+    try:
+        await conn.rollback()
+    except Exception:
+        pass
+    return conn
 
 async def release_conn(conn):
     pool.release(conn)
