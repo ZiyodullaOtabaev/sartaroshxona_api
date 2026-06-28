@@ -20,6 +20,7 @@ import time
 import base64
 import hashlib
 import binascii
+import httpx
 
 from typing import Optional, List
 from contextlib import asynccontextmanager
@@ -43,6 +44,10 @@ SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "http://192.168.10.4:8000")
 PAYME_MERCHANT_ID = os.getenv("PAYME_MERCHANT_ID", "TEST_PAYME_MERCHANT_ID")
 PAYME_KEY = os.getenv("PAYME_KEY", "TEST_PAYME_KEY")
 PAYME_CHECKOUT_URL = os.getenv("PAYME_CHECKOUT_URL", "https://checkout.paycom.uz")
+# Payme Subscribe (Cards) API — ilova ichida karta bilan to'lash uchun
+PAYME_SUBSCRIBE_URL = os.getenv("PAYME_SUBSCRIBE_URL", "https://checkout.paycom.uz/api")
+# Payme receipts.create da ishlatiladigan hisob maydoni nomi (kabinetdagi bilan bir xil)
+PAYME_ACCOUNT_FIELD = os.getenv("PAYME_ACCOUNT_FIELD", "order_id")
 # Click
 CLICK_SERVICE_ID = os.getenv("CLICK_SERVICE_ID", "TEST_CLICK_SERVICE_ID")
 CLICK_MERCHANT_ID = os.getenv("CLICK_MERCHANT_ID", "TEST_CLICK_MERCHANT_ID")
@@ -367,6 +372,21 @@ class MessageCreate(BaseModel):
 class CheckoutRequest(BaseModel):
     appointment_id: int
     gateway: str  # 'payme' yoki 'click'
+
+class CardCreate(BaseModel):
+    number: str        # karta raqami (16 raqam)
+    expire: str        # YYMM yoki MMYY (Payme formati: "MMYY")
+
+class CardTokenAction(BaseModel):
+    token: str
+
+class CardVerify(BaseModel):
+    token: str
+    code: str
+
+class CardPay(BaseModel):
+    appointment_id: int
+    token: str
 
 # =====================================================
 # AUTH ENDPOINTS
@@ -1838,6 +1858,117 @@ async def click_complete(request: Request):
                 "error": 0,
                 "error_note": "Success",
             }
+    finally:
+        await release_conn(conn)
+
+
+# =====================================================
+# PAYME SUBSCRIBE (CARDS) API — ilova ichida karta bilan to'lash
+# =====================================================
+# Foydalanuvchi karta raqamini ilova ichida kiritadi (redirectsiz).
+# Oqim: cards.create -> cards.get_verify_code (SMS) -> cards.verify (OTP)
+#       -> receipts.create -> receipts.pay
+# DIQQAT: karta raqami (PAN) log qilinmaydi va saqlanmaydi; faqat Payme'ga
+# uzatiladi va qaytgan token ishlatiladi. Subscribe API alohida ruxsat talab
+# qiladi (Payme bilan shartnoma). Kalitlarni .env orqali bering.
+
+async def _payme_subscribe(method: str, params: dict, use_key: bool = False):
+    """Payme Subscribe API ga JSON-RPC so'rov yuboradi. (result, error) qaytaradi."""
+    auth = f"{PAYME_MERCHANT_ID}:{PAYME_KEY}" if use_key else PAYME_MERCHANT_ID
+    payload = {"id": int(time.time() * 1000) % 1000000, "method": method, "params": params}
+    headers = {"X-Auth": auth, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(PAYME_SUBSCRIBE_URL, json=payload, headers=headers)
+        data = resp.json()
+        return data.get("result"), data.get("error")
+    except Exception as e:
+        return None, {"message": f"To'lov xizmatiga ulanib bo'lmadi: {e}"}
+
+
+def _payme_err_msg(error, fallback):
+    msg = error.get("message") if isinstance(error, dict) else None
+    if isinstance(msg, dict):
+        return msg.get("uz") or msg.get("ru") or msg.get("en") or fallback
+    return msg or fallback
+
+
+@app.post("/card/create")
+async def card_create(data: CardCreate):
+    """Karta tokenini yaratadi (hali tasdiqlanmagan)."""
+    result, error = await _payme_subscribe("cards.create", {
+        "card": {"number": data.number, "expire": data.expire},
+        "save": True,
+    })
+    if error or not result:
+        raise HTTPException(status_code=400, detail=_payme_err_msg(error, "Kartani qo'shib bo'lmadi"))
+    card = result.get("card", {})
+    return {"token": card.get("token"), "verify": card.get("verify", False)}
+
+
+@app.post("/card/send_code")
+async def card_send_code(data: CardTokenAction):
+    """Kartaga bog'langan telefon raqamiga SMS-kod yuboradi."""
+    result, error = await _payme_subscribe("cards.get_verify_code", {"token": data.token})
+    if error or not result:
+        raise HTTPException(status_code=400, detail=_payme_err_msg(error, "Kod yuborib bo'lmadi"))
+    return {"sent": True, "phone": result.get("phone"), "wait": result.get("wait")}
+
+
+@app.post("/card/verify")
+async def card_verify(data: CardVerify):
+    """SMS-kod orqali kartani tasdiqlaydi."""
+    result, error = await _payme_subscribe("cards.verify", {"token": data.token, "code": data.code})
+    if error or not result:
+        raise HTTPException(status_code=400, detail=_payme_err_msg(error, "Kod noto'g'ri"))
+    card = result.get("card", {})
+    return {"verified": card.get("verify", False)}
+
+
+@app.post("/card/pay")
+async def card_pay(data: CardPay):
+    """Tasdiqlangan karta tokeni bilan navbat uchun to'lov qiladi."""
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT price, payment_status FROM appointments WHERE id=%s", (data.appointment_id,))
+            appt = await cur.fetchone()
+            if not appt:
+                raise HTTPException(status_code=404, detail="Navbat topilmadi")
+            if appt['payment_status'] == 'paid':
+                raise HTTPException(status_code=409, detail="Allaqachon to'langan")
+            amount_tiyin = int(round(float(appt['price']) * 100))
+
+            # 1) Chek yaratish
+            result, error = await _payme_subscribe("receipts.create", {
+                "amount": amount_tiyin,
+                "account": {PAYME_ACCOUNT_FIELD: data.appointment_id},
+            }, use_key=True)
+            if error or not result:
+                raise HTTPException(status_code=400, detail=_payme_err_msg(error, "Chek yaratib bo'lmadi"))
+            receipt_id = (result.get("receipt") or {}).get("_id")
+            if not receipt_id:
+                raise HTTPException(status_code=400, detail="Chek identifikatori olinmadi")
+
+            # 2) Chekni to'lash
+            result2, error2 = await _payme_subscribe("receipts.pay", {
+                "id": receipt_id,
+                "token": data.token,
+            }, use_key=True)
+            if error2 or not result2:
+                raise HTTPException(status_code=400, detail=_payme_err_msg(error2, "To'lov amalga oshmadi"))
+            state = (result2.get("receipt") or {}).get("state")
+            if state != 4:  # 4 = to'langan
+                raise HTTPException(status_code=400, detail="To'lov tasdiqlanmadi")
+
+            await _gw_mark_paid(cur, data.appointment_id, 'card')
+            await conn.commit()
+            return {"status": "success"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         await release_conn(conn)
 
