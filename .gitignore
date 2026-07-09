@@ -1,0 +1,48 @@
+# ═══════════════════════════════════════════════════════════════
+# Sartaroshxona — Root .gitignore
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Signing / Secrets ────────────────────────────────────────
+*.jks
+*.keystore
+key.properties
+firebase-service-account.json
+google-services.json
+
+# ─── Python / Backend ────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+.venv-1/
+.env
+*.egg-info/
+dist/
+build/
+uploads/avatars/*
+!uploads/avatars/.gitkeep
+
+# ─── Flutter / Frontend ──────────────────────────────────────
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+.metadata
+
+# ─── IDE ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── OS ──────────────────────────────────────────────────────
+desktop.ini
+ehthumbs.db

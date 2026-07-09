@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+aiomysql
+python-multipart
+passlib[bcrypt]
+pydantic
+email-validator
+python-dotenv
+PyJWT
+cryptography
+httpx
+firebase-admin

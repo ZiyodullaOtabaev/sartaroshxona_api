@@ -1,0 +1,258 @@
+# =====================================================
+# DATABASE — Connection pool, helper funksiyalar
+# =====================================================
+
+import math
+import datetime
+
+import aiomysql
+
+from config import DB_CONFIG
+
+# =====================================================
+# CONNECTION POOL
+# =====================================================
+
+pool: aiomysql.Pool = None
+
+
+async def create_pool():
+    """DB connection pool yaratish (lifespan boshida chaqiriladi)."""
+    global pool
+    pool_config = {
+        "host": DB_CONFIG["host"],
+        "port": DB_CONFIG["port"],
+        "user": DB_CONFIG["user"],
+        "password": DB_CONFIG["password"],
+        "db": DB_CONFIG["db"],
+        "autocommit": DB_CONFIG["autocommit"],
+        "minsize": DB_CONFIG["minsize"],
+        "maxsize": DB_CONFIG["maxsize"],
+    }
+    if "ssl" in DB_CONFIG:
+        pool_config["ssl"] = DB_CONFIG["ssl"]
+    pool = await aiomysql.create_pool(**pool_config)
+    print("Database connection pool yaratildi")
+    return pool
+
+
+async def close_pool():
+    """Pool'ni yopish (lifespan oxirida chaqiriladi)."""
+    global pool
+    if pool:
+        pool.close()
+        await pool.wait_closed()
+
+
+async def init_tables():
+    """Zarur jadvallarni avtomatik yaratish (idempotent)."""
+    global pool
+    try:
+        conn = await pool.acquire()
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS messages ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "sender_id INT NOT NULL, "
+                    "receiver_id INT NOT NULL, "
+                    "body TEXT NOT NULL, "
+                    "is_read BOOLEAN DEFAULT FALSE, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "INDEX idx_pair (sender_id, receiver_id), "
+                    "FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE"
+                    ")"
+                )
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS gateway_transactions ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "gateway VARCHAR(10) NOT NULL, "
+                    "order_id INT NOT NULL, "
+                    "amount BIGINT NOT NULL, "
+                    "state INT NOT NULL DEFAULT 0, "
+                    "provider_trans_id VARCHAR(64), "
+                    "create_time BIGINT DEFAULT 0, "
+                    "perform_time BIGINT DEFAULT 0, "
+                    "cancel_time BIGINT DEFAULT 0, "
+                    "reason INT DEFAULT NULL, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "INDEX idx_order (order_id), "
+                    "INDEX idx_provider (gateway, provider_trans_id)"
+                    ")"
+                )
+                # Loyalty stamps
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS loyalty_stamps ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "customer_id INT NOT NULL, "
+                    "appointment_id INT NOT NULL, "
+                    "earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "expires_at TIMESTAMP NOT NULL, "
+                    "is_used BOOLEAN DEFAULT FALSE, "
+                    "FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE, "
+                    "UNIQUE KEY unique_stamp (appointment_id, customer_id), "
+                    "INDEX idx_stamps_customer (customer_id, is_used, expires_at)"
+                    ")"
+                )
+                # Loyalty rewards
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS loyalty_rewards ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "customer_id INT NOT NULL, "
+                    "reward_code VARCHAR(20) NOT NULL UNIQUE, "
+                    "max_value DECIMAL(10,2) DEFAULT 100000, "
+                    "is_redeemed BOOLEAN DEFAULT FALSE, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "expires_at TIMESTAMP NOT NULL, "
+                    "redeemed_at TIMESTAMP NULL, "
+                    "redeemed_appointment_id INT NULL, "
+                    "FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "INDEX idx_rewards_customer (customer_id, is_redeemed)"
+                    ")"
+                )
+                # Referrals
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS referrals ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "referrer_id INT NOT NULL, "
+                    "referred_id INT NOT NULL, "
+                    "referral_code VARCHAR(20) NOT NULL, "
+                    "status ENUM('pending','completed','expired') DEFAULT 'pending', "
+                    "reward_amount DECIMAL(10,2) DEFAULT 10000, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "completed_at TIMESTAMP NULL, "
+                    "FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "FOREIGN KEY (referred_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "UNIQUE KEY unique_referral (referred_id), "
+                    "INDEX idx_referrals_referrer (referrer_id, status)"
+                    ")"
+                )
+                # User devices (FCM push token)
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS user_devices ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "user_id INT NOT NULL, "
+                    "fcm_token VARCHAR(255) NOT NULL, "
+                    "device_type ENUM('android','ios') DEFAULT 'android', "
+                    "is_active BOOLEAN DEFAULT TRUE, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                    "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "UNIQUE KEY unique_token (fcm_token), "
+                    "INDEX idx_devices_user (user_id, is_active)"
+                    ")"
+                )
+                # Platform earnings
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS platform_earnings ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "payment_id INT NOT NULL, "
+                    "appointment_id INT NOT NULL, "
+                    "amount DECIMAL(10,2) NOT NULL, "
+                    "commission_rate DECIMAL(4,2) DEFAULT 2.00, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "INDEX idx_earnings_date (created_at)"
+                    ")"
+                )
+                # Email verifications
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS email_verifications ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "user_id INT NOT NULL, "
+                    "email VARCHAR(120) NOT NULL, "
+                    "code VARCHAR(6) NOT NULL, "
+                    "is_verified BOOLEAN DEFAULT FALSE, "
+                    "attempts INT DEFAULT 0, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "expires_at TIMESTAMP NOT NULL, "
+                    "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "INDEX idx_email_code (email, code), "
+                    "INDEX idx_user_verify (user_id, is_verified)"
+                    ")"
+                )
+                # Password resets
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS password_resets ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "user_id INT NOT NULL, "
+                    "email VARCHAR(120) NOT NULL, "
+                    "code VARCHAR(6) NOT NULL, "
+                    "is_used BOOLEAN DEFAULT FALSE, "
+                    "attempts INT DEFAULT 0, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "expires_at TIMESTAMP NOT NULL, "
+                    "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
+                    "INDEX idx_reset_email (email, code)"
+                    ")"
+                )
+                # Login attempts
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS login_attempts ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "email VARCHAR(120) NOT NULL, "
+                    "ip_address VARCHAR(45), "
+                    "is_success BOOLEAN DEFAULT FALSE, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "INDEX idx_attempts_email (email, created_at)"
+                    ")"
+                )
+                await conn.commit()
+            print("Barcha jadvallar tayyor (messages, gateway, loyalty, referrals, devices, earnings, auth)")
+        finally:
+            pool.release(conn)
+    except Exception as e:
+        print(f"Jadvallarni yaratishda ogohlantirish: {e}")
+
+
+# =====================================================
+# CONNECTION HELPERS
+# =====================================================
+
+async def get_conn():
+    """Pool'dan ulanish olish. Har safar yangi snapshot uchun rollback qilinadi."""
+    conn = await pool.acquire()
+    # MUHIM: autocommit=False bo'lgani uchun pool'dagi ulanish oldingi
+    # tranzaksiyaning eskirgan snapshot'ini ushlab qolishi mumkin (REPEATABLE READ).
+    # Har bir so'rovni yangi snapshot bilan boshlash uchun tranzaksiyani yopamiz.
+    try:
+        await conn.rollback()
+    except Exception:
+        pass
+    return conn
+
+
+async def release_conn(conn):
+    """Ulanishni pool'ga qaytarish."""
+    pool.release(conn)
+
+
+# =====================================================
+# UTILITY HELPERS
+# =====================================================
+
+def haversine(lat1, lon1, lat2, lon2):
+    """Ikki nuqta orasidagi masofani km da hisoblash."""
+    if None in (lat1, lon1, lat2, lon2):
+        return 0.0
+    R = 6371
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon / 2) ** 2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+
+def timedelta_to_str(td):
+    """timedelta yoki vaqtni 'HH:MM' formatga o'girish."""
+    if td is None:
+        return None
+    if isinstance(td, datetime.timedelta):
+        total = int(td.total_seconds())
+        h = total // 3600
+        m = (total % 3600) // 60
+        return f"{h:02d}:{m:02d}"
+    return str(td)
