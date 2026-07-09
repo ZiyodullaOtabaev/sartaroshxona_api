@@ -17,7 +17,7 @@ class AppConstants {
   /// bilan vaqtincha local'ga o'tkazsa bo'ladi.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://sartaroshxona-api.onrender.com', // ← Render URL (tekshiring!)
+    defaultValue: 'https://sartaroshxona-api-ly5e.onrender.com', // ← Render URL
   );
 
   /// API so'rovlar uchun timeout (sekundlarda)
