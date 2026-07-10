@@ -125,8 +125,11 @@ async def register(user: UserRegister):
 
             await conn.commit()
 
-            # Email yuborish (async, xatolik bo'lsa skip)
-            await send_verification_email(user.email, otp_code, user.full_name)
+            # Email yuborish (xatolik bo'lsa skip — server to'xtamasligi uchun)
+            try:
+                await send_verification_email(user.email, otp_code, user.full_name)
+            except Exception as email_err:
+                print(f"[Register] Email yuborishda xatolik (skip): {email_err}")
 
             token = create_access_token({"user_id": user_id, "role": user.role, "email": user.email})
             verification = None
