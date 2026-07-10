@@ -5,28 +5,37 @@
 import datetime
 
 import jwt
+import bcrypt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from passlib.context import CryptContext
 
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_HOURS
 
 # =====================================================
-# PASSWORD HASH
+# PASSWORD HASH (to'g'ridan-to'g'ri bcrypt — passlib muammoli)
 # =====================================================
-
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto"
-)
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
+
+
+# passlib mos class (eski kod uchun backward compatibility)
+class _PwdCompat:
+    def hash(self, password: str) -> str:
+        return hash_password(password)
+
+    def verify(self, plain: str, hashed: str) -> bool:
+        return verify_password(plain, hashed)
+
+pwd_context = _PwdCompat()
 
 
 # =====================================================

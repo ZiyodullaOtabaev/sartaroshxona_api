@@ -2,8 +2,7 @@ fastapi
 uvicorn[standard]
 aiomysql
 python-multipart
-passlib[bcrypt]
-bcrypt==4.2.1
+bcrypt
 pydantic
 email-validator
 python-dotenv
