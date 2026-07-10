@@ -1,18 +1,14 @@
 # =====================================================
-# EMAIL SERVICE — Gmail SMTP orqali email yuborish
+# EMAIL SERVICE — Resend HTTP API orqali email yuborish
+# SMTP kerak emas — Render'da ishlaydi
 # =====================================================
 
-import smtplib
 import random
 import string
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
-from config import (
-    SMTP_HOST, SMTP_PORT,
-    SMTP_USER, SMTP_PASSWORD,
-    SMTP_SENDER_EMAIL, SMTP_SENDER_NAME,
-)
+import httpx
+
+from config import RESEND_API_KEY, RESEND_SENDER_EMAIL, RESEND_SENDER_NAME
 
 
 def generate_otp(length: int = 6) -> str:
@@ -21,8 +17,8 @@ def generate_otp(length: int = 6) -> str:
 
 
 def _is_configured() -> bool:
-    """SMTP sozlanganmi?"""
-    return bool(SMTP_USER and SMTP_PASSWORD)
+    """Resend API sozlanganmi?"""
+    return bool(RESEND_API_KEY)
 
 
 async def send_verification_email(to_email: str, code: str, user_name: str = "") -> bool:
@@ -45,7 +41,7 @@ async def send_verification_email(to_email: str, code: str, user_name: str = "")
         </div>
     </div>
     """
-    return _send_email(to_email, subject, html)
+    return await _send_email(to_email, subject, html)
 
 
 async def send_password_reset_email(to_email: str, code: str, user_name: str = "") -> bool:
@@ -68,30 +64,37 @@ async def send_password_reset_email(to_email: str, code: str, user_name: str = "
         </div>
     </div>
     """
-    return _send_email(to_email, subject, html)
+    return await _send_email(to_email, subject, html)
 
 
-def _send_email(to_email: str, subject: str, html_body: str) -> bool:
-    """SMTP orqali email yuborish."""
+async def _send_email(to_email: str, subject: str, html_body: str) -> bool:
+    """Resend HTTP API orqali email yuborish."""
     if not _is_configured():
-        print(f"[Email] SMTP sozlanmagan — Development rejim (kod konsolga chiqadi)")
-        return True  # Development'da xatolik bermaslik uchun
+        print(f"[Email] Resend sozlanmagan — Development rejim (kod konsolga chiqadi)")
+        return True
 
     try:
-        sender = SMTP_SENDER_EMAIL or SMTP_USER
-        msg = MIMEMultipart("alternative")
-        msg["From"] = f"{SMTP_SENDER_NAME} <{sender}>"
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(html_body, "html"))
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from": f"{RESEND_SENDER_NAME} <{RESEND_SENDER_EMAIL}>",
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": html_body,
+                },
+            )
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(sender, to_email, msg.as_string())
-
-        print(f"[Email] Yuborildi: {to_email}")
-        return True
+        if response.status_code in (200, 201):
+            print(f"[Email] Yuborildi: {to_email}")
+            return True
+        else:
+            print(f"[Email] Resend xatolik ({response.status_code}): {response.text[:200]}")
+            return False
     except Exception as e:
         print(f"[Email] Xatolik ({to_email}): {e}")
         return False

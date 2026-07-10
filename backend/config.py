@@ -50,16 +50,12 @@ REFERRAL_MAX_COUNT = 20                 # Maksimal taklif soni
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "firebase-service-account.json")
 FIREBASE_ENABLED = os.path.exists(FIREBASE_CREDENTIALS_PATH)
 
-# ─── EMAIL SMTP ───────────────────────────────────────────────────────────────
-# Gmail SMTP — bepul, 500 xabar/kun
-# App Password olish: https://myaccount.google.com/apppasswords
-# (2FA yoqilgan bo'lishi kerak)
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")  # Gmail manzilingiz
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")  # App Password (16 belgi)
-SMTP_SENDER_EMAIL = os.getenv("SMTP_SENDER_EMAIL", "")  # = SMTP_USER bilan bir xil
-SMTP_SENDER_NAME = os.getenv("SMTP_SENDER_NAME", "Sartaroshxona")
+# ─── EMAIL (Resend HTTP API) ──────────────────────────────────────────────────
+# Resend — bepul 100 xabar/kun, SMTP kerak emas (HTTP API)
+# https://resend.com → API Keys → Create
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_SENDER_EMAIL = os.getenv("RESEND_SENDER_EMAIL", "onboarding@resend.dev")
+RESEND_SENDER_NAME = os.getenv("RESEND_SENDER_NAME", "Sartaroshxona")
 
 # ─── AUTH SOZLAMALARI ─────────────────────────────────────────────────────────
 OTP_EXPIRY_MINUTES = 10              # OTP kodi 10 daqiqa amal qiladi
