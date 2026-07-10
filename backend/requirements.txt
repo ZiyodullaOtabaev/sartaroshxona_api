@@ -3,6 +3,7 @@ uvicorn[standard]
 aiomysql
 python-multipart
 passlib[bcrypt]
+bcrypt==4.2.1
 pydantic
 email-validator
 python-dotenv
