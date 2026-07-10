@@ -67,8 +67,8 @@ async def register(user: UserRegister):
 
             hashed_password = hash_password(user.password)
             await cur.execute(
-                "INSERT INTO users (full_name, email, email_verified, password_hash, role, phone) "
-                "VALUES (%s,%s,FALSE,%s,%s,%s)",
+                "INSERT INTO users (full_name, email, password_hash, role, phone) "
+                "VALUES (%s,%s,%s,%s,%s)",
                 (user.full_name, user.email, hashed_password, user.role, user.phone),
             )
             user_id = cur.lastrowid
@@ -262,17 +262,25 @@ async def login(user: UserLogin, request: Request):
                 failed_count = 0  # login_attempts jadvali yo'q — skip
 
             # Login
-            await cur.execute(
-                "SELECT u.id, u.full_name, u.email, u.password_hash, u.role, u.phone, "
-                "u.loyalty_points, "
-                "b.id as barber_id, b.salon_id as barber_salon_id, b.is_online, b.rating, "
-                "b.specialization, b.bio, b.avatar_url, b.working_hours_start, "
-                "b.working_hours_end, b.verification_status, "
-                "s.id as owned_salon_id, s.name as salon_name "
-                "FROM users u LEFT JOIN barbers b ON u.id = b.user_id "
-                "LEFT JOIN salons s ON u.id = s.owner_id WHERE u.email=%s OR u.phone=%s",
-                (user.email, user.email),
-            )
+            try:
+                await cur.execute(
+                    "SELECT u.id, u.full_name, u.email, u.password_hash, u.role, u.phone, "
+                    "u.loyalty_points, "
+                    "b.id as barber_id, b.salon_id as barber_salon_id, b.is_online, b.rating, "
+                    "b.specialization, b.bio, b.avatar_url, b.working_hours_start, "
+                    "b.working_hours_end, b.verification_status, "
+                    "s.id as owned_salon_id, s.name as salon_name "
+                    "FROM users u LEFT JOIN barbers b ON u.id = b.user_id "
+                    "LEFT JOIN salons s ON u.id = s.owner_id WHERE u.email=%s OR u.phone=%s",
+                    (user.email, user.email),
+                )
+            except Exception:
+                # Fallback — minimal so'rov (agar ustunlar yetishmasa)
+                await cur.execute(
+                    "SELECT id, full_name, email, password_hash, role, phone "
+                    "FROM users WHERE email=%s OR phone=%s",
+                    (user.email, user.email),
+                )
             db_user = await cur.fetchone()
 
             if not db_user or not pwd_context.verify(user.password, db_user["password_hash"]):
