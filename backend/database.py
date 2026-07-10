@@ -240,6 +240,27 @@ async def init_tables():
                     ")"
                 )
                 # ─── QOSHIMCHA JADVALLAR ─────────────────────────────────
+                # Yetishmagan ustunlarni qo'shish (eski DB'lar uchun)
+                alter_statements = [
+                    "ALTER TABLE barbers ADD COLUMN salon_id INT NULL AFTER user_id",
+                    "ALTER TABLE barbers ADD COLUMN is_accepting_bookings BOOLEAN DEFAULT TRUE AFTER is_online",
+                    "ALTER TABLE barbers ADD COLUMN verification_status ENUM('pending','approved','rejected') DEFAULT 'approved' AFTER is_accepting_bookings",
+                    "ALTER TABLE barbers ADD COLUMN slot_duration_minutes INT DEFAULT 30 AFTER working_hours_end",
+                    "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE AFTER email",
+                    "ALTER TABLE users ADD COLUMN referral_code VARCHAR(20) UNIQUE AFTER loyalty_points",
+                    "ALTER TABLE users ADD COLUMN referral_balance DECIMAL(10,2) DEFAULT 0 AFTER referral_code",
+                    "ALTER TABLE users ADD COLUMN referred_by INT NULL AFTER referral_balance",
+                    "ALTER TABLE users ADD COLUMN referral_count INT DEFAULT 0 AFTER referred_by",
+                    "ALTER TABLE payments ADD COLUMN platform_fee DECIMAL(10,2) DEFAULT 0 AFTER amount",
+                    "ALTER TABLE payments ADD COLUMN barber_amount DECIMAL(10,2) DEFAULT 0 AFTER platform_fee",
+                    "ALTER TABLE appointments ADD COLUMN commission_amount DECIMAL(10,2) DEFAULT 0 AFTER price",
+                    "ALTER TABLE appointments ADD COLUMN total_charged DECIMAL(10,2) DEFAULT 0 AFTER commission_amount",
+                ]
+                for stmt in alter_statements:
+                    try:
+                        await cur.execute(stmt)
+                    except Exception:
+                        pass  # Ustun allaqachon mavjud — skip
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS messages ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
