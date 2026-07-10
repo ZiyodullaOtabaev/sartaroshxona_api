@@ -152,7 +152,9 @@ async def register(user: UserRegister):
         raise
     except Exception as e:
         await conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Register: {str(e)}")
     finally:
         await release_conn(conn)
 
