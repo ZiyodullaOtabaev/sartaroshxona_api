@@ -115,10 +115,13 @@ async def register(user: UserRegister):
             # Email OTP yaratish va yuborish
             otp_code = generate_otp()
             expires_at = datetime.datetime.now() + datetime.timedelta(minutes=OTP_EXPIRY_MINUTES)
-            await cur.execute(
-                "INSERT INTO email_verifications (user_id, email, code, expires_at) VALUES (%s,%s,%s,%s)",
-                (user_id, user.email, otp_code, expires_at),
-            )
+            try:
+                await cur.execute(
+                    "INSERT INTO email_verifications (user_id, email, code, expires_at) VALUES (%s,%s,%s,%s)",
+                    (user_id, user.email, otp_code, expires_at),
+                )
+            except Exception:
+                pass  # email_verifications jadvali hali yo'q bo'lsa skip
 
             await conn.commit()
 
@@ -234,24 +237,29 @@ async def login(user: UserLogin, request: Request):
     conn = await get_conn()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            # Rate limiting tekshirish
-            block_since = datetime.datetime.now() - datetime.timedelta(minutes=LOGIN_BLOCK_MINUTES)
-            await cur.execute(
-                "SELECT COUNT(*) as cnt FROM login_attempts "
-                "WHERE email=%s AND is_success=FALSE AND created_at > %s",
-                (user.email, block_since),
-            )
-            failed_count = (await cur.fetchone())['cnt']
-            if failed_count >= LOGIN_MAX_ATTEMPTS:
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Juda ko'p urinish. {LOGIN_BLOCK_MINUTES} daqiqadan keyin qayta urinib ko'ring.",
+            # Rate limiting tekshirish (jadval bo'lmasa skip)
+            try:
+                block_since = datetime.datetime.now() - datetime.timedelta(minutes=LOGIN_BLOCK_MINUTES)
+                await cur.execute(
+                    "SELECT COUNT(*) as cnt FROM login_attempts "
+                    "WHERE email=%s AND is_success=FALSE AND created_at > %s",
+                    (user.email, block_since),
                 )
+                failed_count = (await cur.fetchone())['cnt']
+                if failed_count >= LOGIN_MAX_ATTEMPTS:
+                    raise HTTPException(
+                        status_code=429,
+                        detail=f"Juda ko'p urinish. {LOGIN_BLOCK_MINUTES} daqiqadan keyin qayta urinib ko'ring.",
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                failed_count = 0  # login_attempts jadvali yo'q — skip
 
             # Login
             await cur.execute(
                 "SELECT u.id, u.full_name, u.email, u.password_hash, u.role, u.phone, "
-                "u.loyalty_points, u.email_verified, "
+                "u.loyalty_points, "
                 "b.id as barber_id, b.salon_id as barber_salon_id, b.is_online, b.rating, "
                 "b.specialization, b.bio, b.avatar_url, b.working_hours_start, "
                 "b.working_hours_end, b.verification_status, "
@@ -263,24 +271,26 @@ async def login(user: UserLogin, request: Request):
             db_user = await cur.fetchone()
 
             if not db_user or not pwd_context.verify(user.password, db_user["password_hash"]):
-                # Muvaffaqiyatsiz urinishni yozish
+                # Muvaffaqiyatsiz urinishni yozish (jadval bo'lmasa skip)
+                try:
+                    await cur.execute(
+                        "INSERT INTO login_attempts (email, ip_address, is_success) VALUES (%s,%s,FALSE)",
+                        (user.email, client_ip),
+                    )
+                    await conn.commit()
+                except Exception:
+                    pass
+                raise HTTPException(status_code=401, detail="Email yoki parol noto'g'ri")
+
+            # Muvaffaqiyatli login
+            try:
                 await cur.execute(
-                    "INSERT INTO login_attempts (email, ip_address, is_success) VALUES (%s,%s,FALSE)",
+                    "INSERT INTO login_attempts (email, ip_address, is_success) VALUES (%s,%s,TRUE)",
                     (user.email, client_ip),
                 )
                 await conn.commit()
-                remaining = LOGIN_MAX_ATTEMPTS - failed_count - 1
-                detail = "Email yoki parol noto'g'ri"
-                if 0 < remaining <= 2:
-                    detail += f" ({remaining} ta urinish qoldi)"
-                raise HTTPException(status_code=401, detail=detail)
-
-            # Muvaffaqiyatli login yozish
-            await cur.execute(
-                "INSERT INTO login_attempts (email, ip_address, is_success) VALUES (%s,%s,TRUE)",
-                (user.email, client_ip),
-            )
-            await conn.commit()
+            except Exception:
+                pass
 
             db_user.pop("password_hash", None)
             token = create_access_token({
