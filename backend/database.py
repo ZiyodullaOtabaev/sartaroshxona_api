@@ -242,6 +242,7 @@ async def init_tables():
                 # ─── QOSHIMCHA JADVALLAR ─────────────────────────────────
                 # Yetishmagan ustunlarni qo'shish (eski DB'lar uchun)
                 alter_statements = [
+                    "ALTER TABLE users MODIFY COLUMN role ENUM('customer','barber','owner') NOT NULL DEFAULT 'customer'",
                     "ALTER TABLE barbers ADD COLUMN salon_id INT NULL AFTER user_id",
                     "ALTER TABLE barbers ADD COLUMN is_accepting_bookings BOOLEAN DEFAULT TRUE AFTER is_online",
                     "ALTER TABLE barbers ADD COLUMN verification_status ENUM('pending','approved','rejected') DEFAULT 'approved' AFTER is_accepting_bookings",
@@ -255,6 +256,7 @@ async def init_tables():
                     "ALTER TABLE payments ADD COLUMN barber_amount DECIMAL(10,2) DEFAULT 0 AFTER platform_fee",
                     "ALTER TABLE appointments ADD COLUMN commission_amount DECIMAL(10,2) DEFAULT 0 AFTER price",
                     "ALTER TABLE appointments ADD COLUMN total_charged DECIMAL(10,2) DEFAULT 0 AFTER commission_amount",
+                    "ALTER TABLE appointments MODIFY COLUMN payment_method ENUM('cash','card','click','payme','loyalty') DEFAULT 'cash'",
                 ]
                 for stmt in alter_statements:
                     try:
