@@ -132,11 +132,12 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         keyboardType: TextInputType.number,
         maxLength: 1,
         cursorColor: colors.primary,
-        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+        style: TextStyle(color: colors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold, height: 1.2),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
-          fillColor: colors.surface,
+          fillColor: colors.background,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: colors.textSecondary.withValues(alpha: 0.3)),
