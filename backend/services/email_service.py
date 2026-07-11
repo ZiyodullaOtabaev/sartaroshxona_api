@@ -1,14 +1,14 @@
 # =====================================================
-# EMAIL SERVICE — Resend HTTP API orqali email yuborish
-# SMTP kerak emas — Render'da ishlaydi
+# EMAIL SERVICE — Gmail SMTP (port 465 SSL) orqali email yuborish
 # =====================================================
 
+import smtplib
 import random
 import string
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-import httpx
-
-from config import RESEND_API_KEY, RESEND_SENDER_EMAIL, RESEND_SENDER_NAME
+from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_SENDER_NAME
 
 
 def generate_otp(length: int = 6) -> str:
@@ -17,84 +17,68 @@ def generate_otp(length: int = 6) -> str:
 
 
 def _is_configured() -> bool:
-    """Resend API sozlanganmi?"""
-    return bool(RESEND_API_KEY)
+    return bool(SMTP_USER and SMTP_PASSWORD)
 
 
 async def send_verification_email(to_email: str, code: str, user_name: str = "") -> bool:
-    """Email tasdiqlash kodi yuborish."""
     subject = "Sartaroshxona — Email tasdiqlash kodi"
     html = f"""
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
             <h2 style="color:#1a1a2e;margin:0;">Sartaroshxona</h2>
-            <p style="color:#666;font-size:14px;">Email tasdiqlash</p>
         </div>
         <div style="background:white;padding:24px;border-radius:12px;text-align:center;">
-            <p style="color:#333;font-size:15px;">Assalomu alaykum{', ' + user_name if user_name else ''}!</p>
-            <p style="color:#666;font-size:14px;">Tasdiqlash kodingiz:</p>
+            <p style="color:#333;">Assalomu alaykum{', ' + user_name if user_name else ''}!</p>
+            <p style="color:#666;">Tasdiqlash kodingiz:</p>
             <div style="background:#f0f9f4;border:2px dashed #2ecc71;border-radius:12px;padding:16px;margin:16px 0;">
                 <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#2ecc71;">{code}</span>
             </div>
-            <p style="color:#999;font-size:12px;">Kod 10 daqiqa ichida amal qiladi.</p>
-            <p style="color:#999;font-size:12px;">Agar siz ro'yxatdan o'tmagan bo'lsangiz, bu xabarni e'tiborsiz qoldiring.</p>
+            <p style="color:#999;font-size:12px;">Kod 10 daqiqa amal qiladi.</p>
         </div>
     </div>
     """
-    return await _send_email(to_email, subject, html)
+    return _send_email(to_email, subject, html)
 
 
 async def send_password_reset_email(to_email: str, code: str, user_name: str = "") -> bool:
-    """Parol tiklash kodi yuborish."""
     subject = "Sartaroshxona — Parolni tiklash"
     html = f"""
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
             <h2 style="color:#1a1a2e;margin:0;">Sartaroshxona</h2>
-            <p style="color:#666;font-size:14px;">Parolni tiklash</p>
         </div>
         <div style="background:white;padding:24px;border-radius:12px;text-align:center;">
-            <p style="color:#333;font-size:15px;">Assalomu alaykum{', ' + user_name if user_name else ''}!</p>
-            <p style="color:#666;font-size:14px;">Parolingizni tiklash uchun quyidagi kodni kiriting:</p>
+            <p style="color:#333;">Assalomu alaykum{', ' + user_name if user_name else ''}!</p>
+            <p style="color:#666;">Parol tiklash kodingiz:</p>
             <div style="background:#fef3f2;border:2px dashed #e74c3c;border-radius:12px;padding:16px;margin:16px 0;">
                 <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#e74c3c;">{code}</span>
             </div>
-            <p style="color:#999;font-size:12px;">Kod 10 daqiqa ichida amal qiladi.</p>
-            <p style="color:#999;font-size:12px;">Agar siz parolni tiklamoqchi bo'lmagan bo'lsangiz, bu xabarni e'tiborsiz qoldiring.</p>
+            <p style="color:#999;font-size:12px;">Kod 10 daqiqa amal qiladi.</p>
         </div>
     </div>
     """
-    return await _send_email(to_email, subject, html)
+    return _send_email(to_email, subject, html)
 
 
-async def _send_email(to_email: str, subject: str, html_body: str) -> bool:
-    """Resend HTTP API orqali email yuborish."""
+def _send_email(to_email: str, subject: str, html_body: str) -> bool:
     if not _is_configured():
-        print(f"[Email] Resend sozlanmagan — Development rejim (kod konsolga chiqadi)")
+        print(f"[Email] SMTP sozlanmagan — skip")
         return True
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.post(
-                "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "from": f"{RESEND_SENDER_NAME} <{RESEND_SENDER_EMAIL}>",
-                    "to": [to_email],
-                    "subject": subject,
-                    "html": html_body,
-                },
-            )
+        msg = MIMEMultipart("alternative")
+        msg["From"] = f"{SMTP_SENDER_NAME} <{SMTP_USER}>"
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(html_body, "html"))
 
-        if response.status_code in (200, 201):
-            print(f"[Email] Yuborildi: {to_email}")
-            return True
-        else:
-            print(f"[Email] Resend xatolik ({response.status_code}): {response.text[:200]}")
-            return False
+        # Port 465 — SSL (SMTPS)
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, to_email, msg.as_string())
+
+        print(f"[Email] Yuborildi: {to_email}")
+        return True
     except Exception as e:
         print(f"[Email] Xatolik ({to_email}): {e}")
         return False
