@@ -424,3 +424,56 @@ async def owner_revenue_report(days: int = 7, owner=Depends(require_owner)):
             return {"salon_id": salon["id"], "days": days, "report": result}
     finally:
         await release_conn(conn)
+
+
+@router.get("/owner_today_appointments")
+async def owner_today_appointments(owner=Depends(require_owner)):
+    """Bugungi navbatlar ro'yxati (live) — vaqt, mijoz, barber, status."""
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            salon = await _get_owner_salon(cur, owner["user_id"])
+            today = datetime.date.today()
+            await cur.execute(
+                "SELECT a.id, a.appointment_time, a.end_time, a.service_name, a.price, a.status, "
+                "a.payment_status, u.full_name as customer_name, u.phone as customer_phone, "
+                "b.name as barber_name, b.avatar_url as barber_avatar "
+                "FROM appointments a "
+                "JOIN users u ON a.customer_id=u.id "
+                "JOIN barbers b ON a.barber_id=b.id "
+                "WHERE b.salon_id=%s AND DATE(a.appointment_time)=%s AND a.status!='cancelled' "
+                "ORDER BY a.appointment_time ASC",
+                (salon["id"], today),
+            )
+            rows = []
+            for r in await cur.fetchall():
+                d = dict(r)
+                for k in ['appointment_time', 'end_time']:
+                    if d.get(k) and hasattr(d[k], 'isoformat'):
+                        d[k] = d[k].isoformat()
+                    elif d.get(k) and hasattr(d[k], 'strftime'):
+                        d[k] = d[k].strftime('%H:%M')
+                rows.append(d)
+            return {"date": today.isoformat(), "appointments": rows, "count": len(rows)}
+    finally:
+        await release_conn(conn)
+
+
+@router.get("/owner_search_barbers")
+async def owner_search_barbers(query: str, owner=Depends(require_owner)):
+    """Salonga taklif qilish uchun sartarosh qidirish (salonsiz barberlar)."""
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            like = f"%{query}%"
+            await cur.execute(
+                "SELECT b.id, b.name, b.specialization, b.rating, b.total_reviews, b.avatar_url, "
+                "b.phone, b.experience, u.email "
+                "FROM barbers b JOIN users u ON b.user_id=u.id "
+                "WHERE b.salon_id IS NULL AND (b.name LIKE %s OR u.email LIKE %s OR b.phone LIKE %s) "
+                "LIMIT 20",
+                (like, like, like),
+            )
+            return [dict(r) for r in await cur.fetchall()]
+    finally:
+        await release_conn(conn)
