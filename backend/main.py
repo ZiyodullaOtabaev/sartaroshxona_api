@@ -130,6 +130,24 @@ async def health_check():
         raise HTTPException(status_code=503, detail=f"DB xatolik: {str(e)}")
 
 
+@app.delete("/admin/clear_all_users")
+async def clear_all_users(admin_key: str = ""):
+    """Barcha userlarni o'chirish (faqat test uchun)."""
+    if admin_key != "sartaroshxona-admin-2025":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Noto'g'ri kalit")
+    conn = await get_conn()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute("SET FOREIGN_KEY_CHECKS=0")
+            await cur.execute("DELETE FROM users")
+            await cur.execute("SET FOREIGN_KEY_CHECKS=1")
+            await conn.commit()
+        return {"status": "success", "message": "Barcha userlar o'chirildi"}
+    finally:
+        await release_conn(conn)
+
+
 @app.get("/privacy-policy", response_class=HTMLResponse)
 async def privacy_policy():
     """Play Store uchun Privacy Policy sahifasi."""
