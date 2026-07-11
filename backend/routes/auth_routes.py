@@ -118,10 +118,12 @@ async def register(user: UserRegister):
             try:
                 await cur.execute(
                     "INSERT INTO email_verifications (user_id, email, code, expires_at) VALUES (%s,%s,%s,%s)",
-                    (user_id, user.email, otp_code, expires_at),
+                    (user_id, user.email.lower().strip(), otp_code, expires_at),
                 )
-            except Exception:
-                pass  # email_verifications jadvali hali yo'q bo'lsa skip
+                print(f"[Register] OTP saqlandi: {user.email} -> {otp_code}")
+            except Exception as otp_err:
+                print(f"[Register] OTP saqlanmadi: {otp_err}")
+                otp_code = None
 
             await conn.commit()
 
@@ -162,13 +164,15 @@ async def register(user: UserRegister):
 @router.post("/verify_email")
 async def verify_email(data: VerifyEmail):
     """Email tasdiqlash kodi tekshirish."""
+    email = data.email.lower().strip()
+    code = data.code.strip()
     conn = await get_conn()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute(
                 "SELECT id, user_id, attempts, expires_at FROM email_verifications "
                 "WHERE email=%s AND code=%s AND is_verified=FALSE ORDER BY created_at DESC LIMIT 1",
-                (data.email, data.code),
+                (email, code),
             )
             record = await cur.fetchone()
 

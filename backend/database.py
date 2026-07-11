@@ -239,6 +239,18 @@ async def init_tables():
                     "FOREIGN KEY (barber_id) REFERENCES barbers(id) ON DELETE CASCADE"
                     ")"
                 )
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS hairstyles ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "barber_id INT NOT NULL, "
+                    "name VARCHAR(100) NOT NULL, "
+                    "description VARCHAR(255), "
+                    "image_url VARCHAR(500), "
+                    "is_active BOOLEAN DEFAULT TRUE, "
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "FOREIGN KEY (barber_id) REFERENCES barbers(id) ON DELETE CASCADE"
+                    ")"
+                )
                 # ─── QOSHIMCHA JADVALLAR ─────────────────────────────────
                 # Yetishmagan ustunlarni qo'shish (eski DB'lar uchun)
                 alter_statements = [

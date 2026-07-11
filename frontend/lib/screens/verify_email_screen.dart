@@ -122,8 +122,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   Widget _buildOtpField(int index, AppColors colors) {
     return Container(
-      width: 44,
-      height: 52,
+      width: 48,
+      height: 56,
       margin: const EdgeInsets.symmetric(horizontal: 4),
       child: TextField(
         controller: _controllers[index],
@@ -131,12 +131,13 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: TextStyle(color: colors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
+        cursorColor: colors.primary,
+        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
           fillColor: colors.surface,
-          border: OutlineInputBorder(
+          enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: colors.textSecondary.withValues(alpha: 0.3)),
           ),

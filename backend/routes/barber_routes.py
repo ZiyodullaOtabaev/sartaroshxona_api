@@ -301,3 +301,55 @@ async def get_barber_stats(barber_id: int):
         }
     finally:
         await release_conn(conn)
+
+
+# ─── SOCH DIZAYNLARI (HAIRSTYLE TEMPLATES) ──────────────────────────────────
+
+@router.get("/hairstyles/{barber_id}")
+async def get_hairstyles(barber_id: int):
+    """Sartaroshning soch dizaynlari ro'yxati."""
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                "SELECT * FROM hairstyles WHERE barber_id=%s AND is_active=1 ORDER BY created_at DESC",
+                (barber_id,),
+            )
+            rows = []
+            for r in await cur.fetchall():
+                d = dict(r)
+                if d.get('created_at') and hasattr(d['created_at'], 'isoformat'):
+                    d['created_at'] = d['created_at'].isoformat()
+                rows.append(d)
+            return rows
+    finally:
+        await release_conn(conn)
+
+
+@router.post("/hairstyles")
+async def add_hairstyle(barber_id: int, name: str, description: str = "", image_url: str = ""):
+    """Yangi soch dizayni qo'shish."""
+    conn = await get_conn()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "INSERT INTO hairstyles (barber_id, name, description, image_url) VALUES (%s,%s,%s,%s)",
+                (barber_id, name, description, image_url),
+            )
+            await conn.commit()
+            return {"status": "success", "id": cur.lastrowid}
+    finally:
+        await release_conn(conn)
+
+
+@router.delete("/hairstyles/{style_id}")
+async def delete_hairstyle(style_id: int):
+    """Soch dizaynini o'chirish."""
+    conn = await get_conn()
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute("UPDATE hairstyles SET is_active=0 WHERE id=%s", (style_id,))
+            await conn.commit()
+            return {"status": "success"}
+    finally:
+        await release_conn(conn)
