@@ -1088,6 +1088,47 @@ class ApiService {
     }
     return null;
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SOCH DIZAYNLARI (HAIRSTYLES) & SLOT BLOKLASH
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<List<dynamic>> getHairstyles(int barberId) async {
+    final response = await _get('/hairstyles/$barberId');
+    if (response != null && response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return [];
+  }
+
+  Future<bool> addHairstyle({required int barberId, required String name, String description = '', String imageUrl = ''}) async {
+    final response = await _post('/hairstyles?barber_id=$barberId&name=${Uri.encodeComponent(name)}&description=${Uri.encodeComponent(description)}&image_url=${Uri.encodeComponent(imageUrl)}');
+    return response != null && response.statusCode == 200;
+  }
+
+  Future<bool> deleteHairstyle(int styleId) async {
+    final response = await _delete('/hairstyles/$styleId');
+    return response != null && response.statusCode == 200;
+  }
+
+  Future<List<dynamic>> getBlockedSlots(int barberId) async {
+    final response = await _get('/blocked_slots/$barberId');
+    if (response != null && response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return [];
+  }
+
+  Future<bool> blockSlot({required int barberId, required String blockedDate, required String startTime, required String endTime, String reason = ''}) async {
+    final response = await _post('/block_slot', body: {
+      'barber_id': barberId,
+      'blocked_date': blockedDate,
+      'start_time': startTime,
+      'end_time': endTime,
+      'reason': reason,
+    });
+    return response != null && response.statusCode == 200;
+  }
 }
 
 
