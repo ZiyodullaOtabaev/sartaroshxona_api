@@ -660,7 +660,7 @@ class _BarberDashboardState extends State<BarberDashboard> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => ChatScreen(
-                          currentUserId: widget.userId,
+                          userId: widget.userId,
                           receiverId: customerId,
                           receiverName: a['customer_name'] ?? 'Mijoz',
                         ),
@@ -1346,7 +1346,7 @@ class _BarberDashboardState extends State<BarberDashboard> {
                   if (dateC.text.isEmpty || startC.text.isEmpty || endC.text.isEmpty) return;
                   await ApiService().blockSlot(
                     barberId: widget.barberId,
-                    blockedDate: dateC.text,
+                    date: dateC.text,
                     startTime: startC.text,
                     endTime: endC.text,
                     reason: reasonC.text,

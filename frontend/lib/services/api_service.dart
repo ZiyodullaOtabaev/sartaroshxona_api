@@ -1118,17 +1118,6 @@ class ApiService {
     }
     return [];
   }
-
-  Future<bool> blockSlot({required int barberId, required String blockedDate, required String startTime, required String endTime, String reason = ''}) async {
-    final response = await _post('/block_slot', body: {
-      'barber_id': barberId,
-      'blocked_date': blockedDate,
-      'start_time': startTime,
-      'end_time': endTime,
-      'reason': reason,
-    });
-    return response != null && response.statusCode == 200;
-  }
 }
 
 
