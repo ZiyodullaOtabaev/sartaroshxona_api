@@ -269,6 +269,11 @@ async def init_tables():
                     "ALTER TABLE appointments ADD COLUMN commission_amount DECIMAL(10,2) DEFAULT 0 AFTER price",
                     "ALTER TABLE appointments ADD COLUMN total_charged DECIMAL(10,2) DEFAULT 0 AFTER commission_amount",
                     "ALTER TABLE appointments MODIFY COLUMN payment_method ENUM('cash','card','click','payme','loyalty') DEFAULT 'cash'",
+                    "ALTER TABLE barbers ADD COLUMN subscription_tier VARCHAR(20) DEFAULT 'trial' AFTER district",
+                    "ALTER TABLE barbers ADD COLUMN subscription_expires_at DATETIME DEFAULT NULL AFTER subscription_tier",
+                    "ALTER TABLE barbers ADD COLUMN is_vip BOOLEAN DEFAULT FALSE AFTER subscription_expires_at",
+                    "ALTER TABLE salons ADD COLUMN subscription_tier VARCHAR(20) DEFAULT 'trial' AFTER rating",
+                    "ALTER TABLE salons ADD COLUMN subscription_expires_at DATETIME DEFAULT NULL AFTER subscription_tier",
                 ]
                 for stmt in alter_statements:
                     try:
@@ -420,6 +425,23 @@ async def init_tables():
                     "is_success BOOLEAN DEFAULT FALSE, "
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "INDEX idx_attempts_email (email, created_at)"
+                    ")"
+                )
+                # Subscriptions
+                await cur.execute(
+                    "CREATE TABLE IF NOT EXISTS subscriptions ("
+                    "id INT AUTO_INCREMENT PRIMARY KEY, "
+                    "user_id INT NOT NULL, "
+                    "barber_id INT, "
+                    "salon_id INT, "
+                    "plan_key VARCHAR(30) NOT NULL, "
+                    "amount DECIMAL(10,2) NOT NULL, "
+                    "months INT DEFAULT 1, "
+                    "status ENUM('active', 'expired', 'cancelled') DEFAULT 'active', "
+                    "payment_method VARCHAR(20) DEFAULT 'payme', "
+                    "started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                    "expires_at DATETIME NOT NULL, "
+                    "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
                     ")"
                 )
                 await conn.commit()

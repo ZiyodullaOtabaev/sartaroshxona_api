@@ -7,6 +7,7 @@ import 'package:sartaroshxona/screens/profile_edit_screen.dart';
 import 'package:sartaroshxona/screens/working_days_screen.dart';
 import 'package:sartaroshxona/screens/change_password_screen.dart';
 import 'package:sartaroshxona/screens/chat_screen.dart';
+import 'package:sartaroshxona/screens/subscription_screen.dart';
 import 'package:sartaroshxona/widgets/qr_card_dialog.dart';
 
 class BarberDashboard extends StatefulWidget {
@@ -1406,6 +1407,9 @@ class _BarberDashboardState extends State<BarberDashboard> {
         ),
         const SizedBox(height: 24),
 
+        _settingsTile(colors, Icons.workspace_premium_rounded, "Obuna va Tariflar (SaaS)", () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => SubscriptionScreen(userId: widget.userId, role: 'barber')));
+        }),
         _settingsTile(colors, Icons.qr_code_2_rounded, "Mening QR Kodim (Chop etish)", () {
           QrCardDialog.show(
             context,

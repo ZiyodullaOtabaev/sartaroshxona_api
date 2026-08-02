@@ -1118,6 +1118,34 @@ class ApiService {
     }
     return [];
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // OBUNA VA TARIFLAR (SaaS SUBSCRIPTIONS)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<List<dynamic>> getSubscriptionPlans() async {
+    final response = await _get('/subscription/plans');
+    if (response != null && response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>?> getSubscriptionStatus(int userId) async {
+    final response = await _get('/subscription/status/$userId');
+    if (response != null && response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> activateSubscription({required int userId, required String planKey, int months = 1}) async {
+    final response = await _post('/subscription/activate?user_id=$userId&plan_key=$planKey&months=$months');
+    if (response != null && response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return null;
+  }
 }
 
 

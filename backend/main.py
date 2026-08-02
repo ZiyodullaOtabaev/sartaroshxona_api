@@ -28,6 +28,7 @@ from routes.admin_routes import router as admin_router
 from routes.loyalty_routes import router as loyalty_router
 from routes.referral_routes import router as referral_router
 from routes.notification_routes import router as notification_router
+from routes.subscription_routes import router as subscription_router
 
 
 # =====================================================
@@ -104,6 +105,7 @@ app.include_router(admin_router)
 app.include_router(loyalty_router)
 app.include_router(referral_router)
 app.include_router(notification_router)
+app.include_router(subscription_router)
 
 
 # =====================================================
