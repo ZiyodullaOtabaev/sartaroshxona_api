@@ -7,8 +7,9 @@ import string
 
 import aiomysql
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
 
-from config import REFERRAL_REWARD_AMOUNT, REFERRAL_MAX_COUNT
+from config import REFERRAL_REWARD_AMOUNT, REFERRAL_MAX_COUNT, SERVER_BASE_URL
 from database import get_conn, release_conn
 
 router = APIRouter()
@@ -50,17 +51,55 @@ async def get_my_referral_code(user_id: int):
                 await cur.execute("UPDATE users SET referral_code=%s WHERE id=%s", (code, user_id))
                 await conn.commit()
 
+            referral_link = f"{SERVER_BASE_URL}/ref/{code}"
             return {
                 "referral_code": code,
+                "referral_link": referral_link,
                 "referral_balance": float(user["referral_balance"] or 0),
                 "referral_count": user["referral_count"] or 0,
                 "max_referrals": REFERRAL_MAX_COUNT,
                 "reward_per_referral": REFERRAL_REWARD_AMOUNT,
-                "share_message": f"Sartaroshxona ilovasida navbat oling — mening kodim: {code}. "
-                                 f"Ikkalamizga {int(REFERRAL_REWARD_AMOUNT)} so'm chegirma!",
+                "share_message": f"✂️ Sartaroshxona ilovasida navbat oling va chegirmaga ega bo'ling!\n\n"
+                                 f"Mening taklif kodim: {code}\n"
+                                 f"Taklif havolasi: {referral_link}\n\n"
+                                 f"Ushbu havola orqali ilovani yuklab oling va ikkalamizga {int(REFERRAL_REWARD_AMOUNT)} so'm mukofot oling!",
             }
     finally:
         await release_conn(conn)
+
+
+@router.get("/ref/{code}", response_class=HTMLResponse)
+async def referral_landing_page(code: str):
+    """Referral havola brauzerda ochilganda ilovaga yo'naltirish landing sahifasi."""
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="uz">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sartaroshxona — Taklif Kodi: {code}</title>
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0D1117; color: white; text-align: center; padding: 40px 20px; margin: 0; }}
+            .card {{ background: #161B22; border-radius: 24px; padding: 32px 24px; max-width: 420px; margin: 20px auto; border: 1px solid #30363D; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }}
+            h2 {{ color: #A29BFE; margin-bottom: 8px; font-size: 26px; }}
+            p {{ color: #8B949E; font-size: 15px; line-height: 1.5; }}
+            .code-box {{ font-size: 26px; letter-spacing: 4px; font-weight: bold; color: #FFFFFF; background: linear-gradient(135deg, #6C5CE7, #A29BFE); padding: 14px 20px; border-radius: 14px; margin: 20px 0; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }}
+            .btn {{ display: block; background: #6C5CE7; color: white; padding: 16px; border-radius: 14px; text-decoration: none; font-weight: bold; font-size: 16px; margin-top: 24px; box-shadow: 0 4px 15px rgba(108,92,231,0.4); }}
+            .btn:hover {{ background: #5B4BC4; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>✂️ Sartaroshxona</h2>
+            <p>Do'stingiz sizni <b>Sartaroshxona</b> ilovasiga taklif qildi!</p>
+            <div class="code-box">{code}</div>
+            <p>Ro'yxatdan o'tishda ushbu taklif kodini kiriting va <b>10,000 so'm mukofot</b> balansiga ega bo'ling!</p>
+            <a href="sartaroshxona://ref/{code}" class="btn">📱 Ilovada Ochish</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 
 @router.get("/referral/stats/{user_id}")

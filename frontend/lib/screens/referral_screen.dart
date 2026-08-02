@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/services/api_service.dart';
 
@@ -38,21 +39,56 @@ class _ReferralScreenState extends State<ReferralScreen> {
   }
 
   void _copyCode() {
+    HapticFeedback.lightImpact();
     final code = _codeData?['referral_code'] ?? '';
     if (code.isEmpty) return;
     Clipboard.setData(ClipboardData(text: code));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Kod nusxalandi!'), duration: Duration(seconds: 2)),
+      const SnackBar(
+        content: Text('Taklif kodi nusxalandi!'),
+        backgroundColor: Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
+  void _copyLink() {
+    HapticFeedback.lightImpact();
+    final link = _codeData?['referral_link'] ?? '';
+    if (link.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: link));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Taklif havolasi nusxalandi!'),
+        backgroundColor: Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _shareTelegram() async {
+    HapticFeedback.mediumImpact();
+    final message = _codeData?['share_message'] ?? '';
+    final tgUrl = Uri.parse('https://t.me/share/url?url=&text=${Uri.encodeComponent(message)}');
+    if (await canLaunchUrl(tgUrl)) {
+      await launchUrl(tgUrl, mode: LaunchMode.externalApplication);
+    } else {
+      _shareCode();
+    }
+  }
+
   void _shareCode() {
+    HapticFeedback.mediumImpact();
     final message = _codeData?['share_message'] ?? '';
     if (message.isEmpty) return;
-    // share_plus yo'q bo'lsa, clipboard ga nusxalaymiz
     Clipboard.setData(ClipboardData(text: message));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Xabar nusxalandi — do\'stlaringizga yuboring!'), duration: Duration(seconds: 3)),
+      const SnackBar(
+        content: Text('Taklif xabari nusxalandi — do\'stlaringizga yuboring!'),
+        backgroundColor: Color(0xFF6C5CE7),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 3),
+      ),
     );
   }
 
@@ -105,6 +141,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   Widget _buildCodeCard(AppColors colors) {
     final code = _codeData?['referral_code'] ?? '---';
+    final link = _codeData?['referral_link'] ?? 'https://sartaroshxona-api-ly5e.onrender.com/ref/$code';
     final reward = (_codeData?['reward_per_referral'] as num?)?.toInt() ?? 10000;
 
     return Container(
@@ -115,69 +152,132 @@ class _ReferralScreenState extends State<ReferralScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF6C5CE7).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8)),
+          BoxShadow(color: const Color(0xFF6C5CE7).withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8)),
         ],
       ),
       child: Column(
         children: [
-          const Icon(Icons.people_alt_rounded, color: Colors.white, size: 40),
+          const Icon(Icons.card_giftcard_rounded, color: Colors.white, size: 44),
           const SizedBox(height: 12),
           const Text(
             "Do'stingizni taklif qiling",
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           Text(
-            "Ikkalangizga ${_formatMoney(reward)} so'm chegirma",
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 14),
+            "Ikkalangizga ${_formatMoney(reward)} so'm mukofot!",
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14),
           ),
-          const SizedBox(height: 24),
-          // Referral kod
+          const SizedBox(height: 20),
+
+          // 1. Referral Kod bobi
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  code,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 3,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("TAKLIFF KODI", style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      Text(
+                        code,
+                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 2),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: _copyCode,
-                  child: const Icon(Icons.copy_rounded, color: Colors.white70, size: 22),
+                ElevatedButton.icon(
+                  onPressed: _copyCode,
+                  icon: const Icon(Icons.copy_rounded, size: 16),
+                  label: const Text("Kodni nusxalash"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF6C5CE7),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 2. Haqiqiy Web Referral Havola
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("TAKLIFF HAVOLASI", style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      Text(
+                        link,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _copyLink,
+                  icon: const Icon(Icons.link_rounded, color: Colors.white),
+                  tooltip: "Havolani nusxalash",
                 ),
               ],
             ),
           ),
           const SizedBox(height: 20),
-          // Share button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _shareCode,
-              icon: const Icon(Icons.share_rounded),
-              label: const Text("Ulashish"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF6C5CE7),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
+
+          // 3. Share Buttons (Telegram + General)
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _shareTelegram,
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  label: const Text("Telegram'ga"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0088CC),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _shareCode,
+                  icon: const Icon(Icons.share_rounded, size: 18),
+                  label: const Text("Ulashish"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF6C5CE7),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
