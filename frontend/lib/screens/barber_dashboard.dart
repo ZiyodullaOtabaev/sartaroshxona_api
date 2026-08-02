@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/services/api_service.dart';
 import 'package:sartaroshxona/utils/launcher.dart';
@@ -946,7 +949,15 @@ class _BarberDashboardState extends State<BarberDashboard> {
   }
 
   Widget _hairstyleCard(AppColors colors, dynamic h) {
-    final imgUrl = h['image_url'] ?? '';
+    String imgUrl = (h['image_url'] ?? '').toString().trim();
+    if (imgUrl.isNotEmpty && !imgUrl.startsWith('http://') && !imgUrl.startsWith('https://')) {
+      if (imgUrl.startsWith('/')) {
+        imgUrl = 'https://sartaroshxona-api-ly5e.onrender.com$imgUrl';
+      } else {
+        imgUrl = 'https://sartaroshxona-api-ly5e.onrender.com/$imgUrl';
+      }
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -962,8 +973,13 @@ class _BarberDashboardState extends State<BarberDashboard> {
             child: SizedBox(
               height: 110,
               width: double.infinity,
-              child: imgUrl.toString().isNotEmpty
-                  ? Image.network(imgUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _hairstylePlaceholder(colors))
+              child: imgUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: imgUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Center(child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary)),
+                      errorWidget: (_, __, ___) => _hairstylePlaceholder(colors),
+                    )
                   : _hairstylePlaceholder(colors),
             ),
           ),
@@ -1099,75 +1115,14 @@ class _BarberDashboardState extends State<BarberDashboard> {
   }
 
   void _showAddHairstyleDialog() {
-    final nameC = TextEditingController();
-    final descC = TextEditingController();
-    final urlC = TextEditingController();
-    final colors = Theme.of(context).extension<AppColors>()!;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: colors.surface,
+      backgroundColor: Theme.of(context).extension<AppColors>()!.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Yangi soch stili namunasi", style: TextStyle(color: colors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: nameC,
-              style: TextStyle(color: colors.textPrimary),
-              decoration: InputDecoration(
-                hintText: "Stil nomi (masalan: Fade Classic, Undercut)",
-                filled: true,
-                fillColor: colors.background,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descC,
-              style: TextStyle(color: colors.textPrimary),
-              decoration: InputDecoration(
-                hintText: "Qisqa tavsif (masalan: Chetlari qisqa, tepasi uzun)",
-                filled: true,
-                fillColor: colors.background,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: urlC,
-              style: TextStyle(color: colors.textPrimary),
-              decoration: InputDecoration(
-                hintText: "Rasm havolasi (URL - ixtiyoriy)",
-                filled: true,
-                fillColor: colors.background,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity, height: 48,
-              child: ElevatedButton(
-                onPressed: () async {
-                  if (nameC.text.isEmpty) return;
-                  await ApiService().addHairstyle(
-                    barberId: widget.barberId,
-                    name: nameC.text,
-                    description: descC.text,
-                    imageUrl: urlC.text,
-                  );
-                  if (mounted) { Navigator.pop(ctx); _loadAll(); }
-                },
-                child: const Text("Saqlash"),
-              ),
-            ),
-          ],
-        ),
+      builder: (ctx) => _AddHairstyleBottomSheet(
+        barberId: widget.barberId,
+        onSaved: _loadAll,
       ),
     );
   }
@@ -1489,5 +1444,222 @@ class _BarberDashboardState extends State<BarberDashboard> {
     if (amount >= 1000000) return '${(amount / 1000000).toStringAsFixed(1)}M';
     if (amount >= 1000) return '${(amount / 1000).toStringAsFixed(0)},${(amount % 1000).toString().padLeft(3, '0')}';
     return amount.toString();
+  }
+}
+
+class _AddHairstyleBottomSheet extends StatefulWidget {
+  final int barberId;
+  final VoidCallback onSaved;
+
+  const _AddHairstyleBottomSheet({required this.barberId, required this.onSaved});
+
+  @override
+  State<_AddHairstyleBottomSheet> createState() => _AddHairstyleBottomSheetState();
+}
+
+class _AddHairstyleBottomSheetState extends State<_AddHairstyleBottomSheet> {
+  final _nameC = TextEditingController();
+  final _descC = TextEditingController();
+  File? _selectedImage;
+  bool _isUploading = false;
+
+  @override
+  void dispose() {
+    _nameC.dispose();
+    _descC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, maxWidth: 800, maxHeight: 800, imageQuality: 85);
+    if (picked != null) {
+      setState(() => _selectedImage = File(picked.path));
+    }
+  }
+
+  void _showImagePickerOptions(BuildContext context, AppColors colors) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
+              Text("Stil rasmini tanlash", style: TextStyle(color: colors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickImage(ImageSource.camera);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        decoration: BoxDecoration(color: colors.background, borderRadius: BorderRadius.circular(16), border: Border.all(color: colors.border)),
+                        child: Column(
+                          children: [
+                            Icon(Icons.camera_alt_rounded, color: colors.primary, size: 32),
+                            const SizedBox(height: 8),
+                            Text("Kamera", style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickImage(ImageSource.gallery);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        decoration: BoxDecoration(color: colors.background, borderRadius: BorderRadius.circular(16), border: Border.all(color: colors.border)),
+                        child: Column(
+                          children: [
+                            Icon(Icons.photo_library_rounded, color: colors.primary, size: 32),
+                            const SizedBox(height: 8),
+                            Text("Galereya", style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>()!;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Yangi soch stili namunasi", style: TextStyle(color: colors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          // Interactive Image Picker Container
+          GestureDetector(
+            onTap: () => _showImagePickerOptions(context, colors),
+            child: Container(
+              height: 140,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: colors.background,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.primary.withValues(alpha: 0.4), width: 1.5),
+              ),
+              child: _selectedImage != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.file(_selectedImage!, fit: BoxFit.cover),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                              child: const Icon(Icons.edit_rounded, color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo_rounded, size: 36, color: colors.primary),
+                        const SizedBox(height: 8),
+                        Text("Stil rasmini yuklash (Galereya/Kamera)", style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text("Mijozlarga namuna sifatida ko'rinadi", style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _nameC,
+            style: TextStyle(color: colors.textPrimary),
+            decoration: InputDecoration(
+              hintText: "Stil nomi (masalan: Fade Classic, Undercut)",
+              filled: true,
+              fillColor: colors.background,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descC,
+            style: TextStyle(color: colors.textPrimary),
+            decoration: InputDecoration(
+              hintText: "Qisqa tavsif (masalan: Chetlari qisqa, tepasi uzun)",
+              filled: true,
+              fillColor: colors.background,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: _isUploading
+                  ? null
+                  : () async {
+                      if (_nameC.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Iltimos, stil nomini kiriting"), backgroundColor: Colors.orange),
+                        );
+                        return;
+                      }
+                      HapticFeedback.mediumImpact();
+                      setState(() => _isUploading = true);
+
+                      String imageUrl = "";
+                      if (_selectedImage != null) {
+                        final uploaded = await ApiService().uploadHairstyleImage(widget.barberId, _selectedImage!);
+                        if (uploaded != null) imageUrl = uploaded;
+                      }
+
+                      await ApiService().addHairstyle(
+                        barberId: widget.barberId,
+                        name: _nameC.text.trim(),
+                        description: _descC.text.trim(),
+                        imageUrl: imageUrl,
+                      );
+
+                      if (mounted) {
+                        Navigator.pop(context);
+                        widget.onSaved();
+                      }
+                    },
+              child: _isUploading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text("Saqlash"),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

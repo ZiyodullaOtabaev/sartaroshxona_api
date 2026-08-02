@@ -2,10 +2,13 @@
 # BARBER ROUTES — CRUD, search, status, services, working days
 # =====================================================
 
+import os
+import shutil
+import uuid
 from typing import List
 
 import aiomysql
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, File, UploadFile
 
 from database import get_conn, release_conn, haversine, timedelta_to_str
 from models import UpdateProfile, BlockedSlot
@@ -324,6 +327,23 @@ async def get_hairstyles(barber_id: int):
             return rows
     finally:
         await release_conn(conn)
+
+
+@router.post("/upload_hairstyle_image/{barber_id}")
+async def upload_hairstyle_image(barber_id: int, file: UploadFile = File(...)):
+    """Soch stili rasmini serverga yuklash."""
+    try:
+        original_ext = os.path.splitext(file.filename)[-1].lower() if file.filename else '.jpg'
+        if original_ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+            original_ext = '.jpg'
+        filename = f"style_{barber_id}_{uuid.uuid4().hex[:8]}{original_ext}"
+        filepath = f"uploads/avatars/{filename}"
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        image_url = f"/uploads/avatars/{filename}"
+        return {"status": "success", "image_url": image_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/hairstyles")
