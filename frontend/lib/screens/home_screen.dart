@@ -17,6 +17,7 @@ import 'package:sartaroshxona/utils/auth_guard.dart';
 import 'package:flutter/services.dart';
 import 'package:sartaroshxona/widgets/user_avatar.dart';
 import 'package:sartaroshxona/widgets/glass.dart';
+import 'package:sartaroshxona/widgets/language_selector_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -490,7 +491,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   subtitle: Text(themeProvider.isDark ? "Yoqilgan" : "O'chirilgan", style: TextStyle(color: colors.textSecondary, fontSize: 12)),
                   trailing: Switch(value: themeProvider.isDark, onChanged: (_) => themeProvider.toggleTheme(), activeColor: colors.primary),
                 ),
-                _drawerItem(colors, Icons.settings_rounded, "Sozlamalar", () { Navigator.pop(context); }),
+                _drawerItem(colors, Icons.language_rounded, "Ilova tili (Tilni tanlash)", () {
+                  Navigator.pop(context);
+                  LanguageSelectorSheet.show(context);
+                }),
                 _drawerItem(colors, Icons.help_outline_rounded, "Yordam markazi", () { Navigator.pop(context); }),
                 const Divider(),
                 Padding(

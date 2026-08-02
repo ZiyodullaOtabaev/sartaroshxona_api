@@ -6,6 +6,8 @@ import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/screens/splash_screen.dart';
 import 'package:sartaroshxona/services/push_notification_service.dart';
 
+import 'package:sartaroshxona/providers/language_provider.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -30,8 +32,11 @@ void main() async {
   ]);
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+      ],
       child: const SartaroshxonaApp(),
     ),
   );

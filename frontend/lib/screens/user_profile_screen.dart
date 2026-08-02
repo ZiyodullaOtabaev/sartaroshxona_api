@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:sartaroshxona/providers/theme_provider.dart';
+import 'package:sartaroshxona/providers/language_provider.dart';
+import 'package:sartaroshxona/widgets/language_selector_sheet.dart';
 import 'package:sartaroshxona/screens/login_screen.dart';
 import 'package:sartaroshxona/screens/favorites_screen.dart';
 import 'package:sartaroshxona/screens/notifications_screen.dart';
@@ -255,7 +257,14 @@ class _UserProfileScreenState extends State<UserProfileScreen>
               _tile(colors, icon: Icons.lock_rounded, iconColor: colors.secondary, title: "Parolni o'zgartirish", subtitle: "Xavfsizlik", onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => ChangePasswordScreen(userId: widget.userId)));
               }),
-              _tile(colors, icon: Icons.language_rounded, iconColor: colors.info, title: "Til", subtitle: "O'zbek"),
+              _tile(
+                colors,
+                icon: Icons.language_rounded,
+                iconColor: colors.info,
+                title: "Ilova tili",
+                subtitle: "${context.watch<LanguageProvider>().currentLanguage.flag} ${context.watch<LanguageProvider>().currentLanguage.name}",
+                onTap: () => LanguageSelectorSheet.show(context),
+              ),
             ]),
 
             // ─── ILOVA HAQIDA ────────────────────────────────────────

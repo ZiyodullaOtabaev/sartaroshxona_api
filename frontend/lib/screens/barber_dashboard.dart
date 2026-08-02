@@ -14,6 +14,7 @@ import 'package:sartaroshxona/screens/subscription_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:sartaroshxona/widgets/user_avatar.dart';
 import 'package:sartaroshxona/widgets/qr_card_dialog.dart';
+import 'package:sartaroshxona/widgets/language_selector_sheet.dart';
 
 class BarberDashboard extends StatefulWidget {
   final String barberName;
@@ -1405,6 +1406,9 @@ class _BarberDashboardState extends State<BarberDashboard> {
         }),
         _settingsTile(colors, Icons.lock_rounded, "Parolni o'zgartirish", () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => ChangePasswordScreen(userId: widget.userId)));
+        }),
+        _settingsTile(colors, Icons.language_rounded, "Ilova tili (Tilni tanlash)", () {
+          LanguageSelectorSheet.show(context);
         }),
         const SizedBox(height: 24),
         _settingsTile(colors, Icons.logout_rounded, "Tizimdan chiqish", () async {
