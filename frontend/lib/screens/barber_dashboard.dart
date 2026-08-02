@@ -809,15 +809,25 @@ class _BarberDashboardState extends State<BarberDashboard> {
       padding: const EdgeInsets.all(16),
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("Xizmatlar narxi (Prays-list)", style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+            Expanded(
+              child: Text(
+                "Xizmatlar narxi (Prays-list)",
+                style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
             ElevatedButton.icon(
-              onPressed: _showAddServiceDialog,
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _showAddServiceDialog();
+              },
               icon: const Icon(Icons.add, size: 18),
               label: const Text("Xizmat qo'shish"),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
@@ -878,15 +888,25 @@ class _BarberDashboardState extends State<BarberDashboard> {
       padding: const EdgeInsets.all(16),
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("Soch va soqol turmaklari", style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+            Expanded(
+              child: Text(
+                "Soch va soqol turmaklari",
+                style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
             ElevatedButton.icon(
-              onPressed: _showAddHairstyleDialog,
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _showAddHairstyleDialog();
+              },
               icon: const Icon(Icons.add_a_photo_outlined, size: 18),
               label: const Text("Stil qo'shish"),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
