@@ -184,7 +184,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             daysLeft > 0
                 ? "Obuna tugashiga $daysLeft kun qoldi"
                 : "Obuna muddati tugagan! Davom etish uchun tarifni yangilang.",
-            style: const TextStyle(color: Colors.white80, fontSize: 13),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13),
           ),
         ],
       ),
