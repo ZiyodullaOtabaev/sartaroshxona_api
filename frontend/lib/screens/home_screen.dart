@@ -126,6 +126,83 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showQrInputDialog() {
+    final colors = Theme.of(context).extension<AppColors>()!;
+    final qrController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Icon(Icons.qr_code_scanner_rounded, color: colors.primary),
+            const SizedBox(width: 10),
+            Text('Sartarosh QR Kodu', style: TextStyle(color: colors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Sartarosh stolidagi QR kod ma'lumotini kiriting:", style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: qrController,
+              autofocus: true,
+              style: TextStyle(color: colors.textPrimary),
+              decoration: InputDecoration(
+                hintText: "sartaroshxona://barber/123",
+                hintStyle: TextStyle(color: colors.textSecondary.withValues(alpha: 0.5)),
+                filled: true,
+                fillColor: colors.background,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Bekor', style: TextStyle(color: colors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final text = qrController.text.trim();
+              if (text.isEmpty) return;
+
+              // Parse barber ID from QR text e.g. "sartaroshxona://barber/5" or "5"
+              int? barberId;
+              if (text.contains('/barber/')) {
+                barberId = int.tryParse(text.split('/barber/').last);
+              } else {
+                barberId = int.tryParse(text);
+              }
+
+              if (barberId != null) {
+                Navigator.pop(ctx);
+                final barberDetail = await ApiService().getBarberDetail(barberId);
+                if (barberDetail != null && mounted) {
+                  final b = Barber.fromJson(barberDetail);
+                  Navigator.push(
+                    context,
+                    PageTransitions.fade(BarberDetailsScreen(barber: b, customerId: widget.userId)),
+                  );
+                } else if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Sartarosh topilmadi")),
+                  );
+                }
+              }
+            },
+            child: const Text('Ochish'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _logout() {
     final colors = Theme.of(context).extension<AppColors>()!;
     showDialog(
@@ -203,6 +280,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
             ],
+          ),
+          IconButton(
+            icon: Icon(Icons.qr_code_scanner_rounded, color: colors.primary),
+            onPressed: _showQrInputDialog,
+            tooltip: "Sartarosh QR kodini skanerlash",
           ),
           IconButton(
             icon: Icon(Icons.tune_rounded, color: colors.textPrimary),

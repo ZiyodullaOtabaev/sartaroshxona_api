@@ -7,6 +7,7 @@ import 'package:sartaroshxona/screens/profile_edit_screen.dart';
 import 'package:sartaroshxona/screens/working_days_screen.dart';
 import 'package:sartaroshxona/screens/change_password_screen.dart';
 import 'package:sartaroshxona/screens/chat_screen.dart';
+import 'package:sartaroshxona/widgets/qr_card_dialog.dart';
 
 class BarberDashboard extends StatefulWidget {
   final String barberName;
@@ -1405,6 +1406,14 @@ class _BarberDashboardState extends State<BarberDashboard> {
         ),
         const SizedBox(height: 24),
 
+        _settingsTile(colors, Icons.qr_code_2_rounded, "Mening QR Kodim (Chop etish)", () {
+          QrCardDialog.show(
+            context,
+            title: widget.barberName,
+            subtitle: "Professional Sartarosh",
+            qrData: "sartaroshxona://barber/${widget.barberId}",
+          );
+        }),
         _settingsTile(colors, Icons.person_rounded, "Profilni tahrirlash", () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileEditScreen(barberId: widget.barberId)));
         }),

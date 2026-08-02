@@ -57,6 +57,11 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_SENDER_NAME = os.getenv("SMTP_SENDER_NAME", "Sartaroshxona")
 
+# ─── SMS (Eskiz.uz API) ───────────────────────────────────────────────────────
+ESKIZ_EMAIL = os.getenv("ESKIZ_EMAIL", "")
+ESKIZ_PASSWORD = os.getenv("ESKIZ_PASSWORD", "")
+ESKIZ_SENDER_HEADER = os.getenv("ESKIZ_SENDER_HEADER", "4546")  # Eskiz standart login/header
+
 # ─── AUTH SOZLAMALARI ─────────────────────────────────────────────────────────
 OTP_EXPIRY_MINUTES = 10              # OTP kodi 10 daqiqa amal qiladi
 OTP_MAX_ATTEMPTS = 5                 # OTP tekshirish urinishlari

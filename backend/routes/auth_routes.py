@@ -22,6 +22,7 @@ from models import (
     VerifyEmail, ForgotPassword, ResetPassword, TokenRefresh,
 )
 from services.email_service import generate_otp, send_verification_email, send_password_reset_email
+from services.sms_service import send_sms_otp
 
 router = APIRouter()
 
@@ -127,11 +128,17 @@ async def register(user: UserRegister):
 
             await conn.commit()
 
-            # Email yuborish (xatolik bo'lsa skip — server to'xtamasligi uchun)
+            # Email & SMS yuborish
             try:
                 await send_verification_email(user.email, otp_code, user.full_name)
             except Exception as email_err:
                 print(f"[Register] Email yuborishda xatolik (skip): {email_err}")
+
+            if user.phone and otp_code:
+                try:
+                    await send_sms_otp(user.phone, otp_code)
+                except Exception as sms_err:
+                    print(f"[Register] SMS yuborishda xatolik: {sms_err}")
 
             token = create_access_token({"user_id": user_id, "role": user.role, "email": user.email})
             verification = None
@@ -208,7 +215,7 @@ async def resend_verification(email: str):
     conn = await get_conn()
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute("SELECT id, full_name, email_verified FROM users WHERE email=%s", (email,))
+            await cur.execute("SELECT id, full_name, phone, email_verified FROM users WHERE email=%s", (email,))
             user = await cur.fetchone()
             if not user:
                 raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
@@ -230,8 +237,18 @@ async def resend_verification(email: str):
             )
             await conn.commit()
 
-            await send_verification_email(email, otp_code, user['full_name'])
-            return {"status": "success", "message": "Yangi kod emailingizga yuborildi"}
+            try:
+                await send_verification_email(email, otp_code, user['full_name'])
+            except Exception as email_err:
+                print(f"[Resend] Email error: {email_err}")
+
+            if user.get('phone') and otp_code:
+                try:
+                    await send_sms_otp(user['phone'], otp_code)
+                except Exception as sms_err:
+                    print(f"[Resend] SMS error: {sms_err}")
+
+            return {"status": "success", "message": "Yangi tasdiqlash kodi yuborildi"}
     finally:
         await release_conn(conn)
 
