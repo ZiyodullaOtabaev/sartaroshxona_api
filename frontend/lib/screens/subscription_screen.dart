@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/services/api_service.dart';
 
@@ -24,6 +25,65 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String _selectedPlanKey = 'vip_month';
   bool _isActivating = false;
 
+  static const List<Map<String, dynamic>> DEFAULT_PLANS = [
+    {
+      "key": "trial",
+      "name": "Free Trial (30 kun)",
+      "price": 0,
+      "period": "1 oy",
+      "features": [
+        "1 oy bepul sinov muddati",
+        "50 tagacha navbatlarni qabul qilish",
+        "Asosiy ish grafigi va xizmatlar",
+      ],
+      "is_best": false,
+      "is_vip": false,
+    },
+    {
+      "key": "standard_month",
+      "name": "Standard Tarif",
+      "price": 50000,
+      "period": "1 oy",
+      "features": [
+        "Oyiga 200 tagacha navbatlar",
+        "SMS & Push bildirishnomalar",
+        "Mijozlar bilan chat va qo'ng'iroq",
+        "Ish grafigi va tushlik bloklash",
+      ],
+      "is_best": false,
+      "is_vip": false,
+    },
+    {
+      "key": "vip_month",
+      "name": "PRO VIP Tarif",
+      "price": 100000,
+      "period": "1 oy",
+      "features": [
+        "Cheksiz (Unlimited) navbatlar",
+        "Qidiruv va Xaritada VIP yashil nishon (TOP)",
+        "Shaxsiy Soch Stillari Portfolio albomi",
+        "Moliyaviy va mijozlar analitikasi",
+        "24/7 Premium qo'llab-quvvatlash",
+      ],
+      "is_best": true,
+      "is_vip": true,
+    },
+    {
+      "key": "salon_month",
+      "name": "Salon Egasi CRM",
+      "price": 200000,
+      "period": "1 oy",
+      "features": [
+        "Salondagi barcha sartaroshlarni boshqarish",
+        "Kunlik/Oylik kassa va tushum CRM paneli",
+        "Sartaroshlarni taklif qilish va o'chirish",
+        "Cheksiz salon statistikasi va hisobotlar",
+      ],
+      "is_best": false,
+      "is_vip": true,
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -37,15 +97,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       ApiService().getSubscriptionPlans(),
     ]);
     if (mounted) {
+      final fetchedPlans = results[1] as List<dynamic>;
       setState(() {
         _status = results[0] as Map<String, dynamic>?;
-        _plans = results[1] as List<dynamic>;
+        _plans = fetchedPlans.isNotEmpty ? fetchedPlans : DEFAULT_PLANS;
         _isLoading = false;
       });
     }
   }
 
   Future<void> _activatePlan(String planKey) async {
+    HapticFeedback.heavyImpact();
     setState(() => _isActivating = true);
     final res = await ApiService().activateSubscription(
       userId: widget.userId,
@@ -58,13 +120,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(res['message'] ?? "Obuna muvaffaqiyatli faollashtirildi!"),
-            backgroundColor: const Color(0xFF2ECC71),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
           ),
         );
         _loadData();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("To'lovda xatolik yuz berdi")),
+          const SnackBar(
+            content: Text("To'lovda xatolik yuz berdi. Qayta urinib ko'ring."),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
@@ -73,6 +139,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>()!;
+    final effectivePlans = _plans.isNotEmpty ? _plans : DEFAULT_PLANS;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -81,7 +148,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: colors.textPrimary),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            Navigator.pop(context);
+          },
         ),
         title: Text(
           "Obuna va Tariflar",
@@ -92,6 +162,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ? Center(child: CircularProgressIndicator(color: colors.primary))
           : RefreshIndicator(
               onRefresh: _loadData,
+              color: colors.primary,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
@@ -116,7 +187,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   const SizedBox(height: 20),
 
                   // Plans list
-                  ..._plans.map((p) => _buildPlanCard(colors, p)),
+                  ...effectivePlans.map((p) => _buildPlanCard(colors, p)),
                 ],
               ),
             ),
@@ -124,7 +195,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Widget _buildCurrentStatusCard(AppColors colors) {
-    final daysLeft = _status?['days_left'] ?? 0;
+    final daysLeft = _status?['days_left'] ?? 30;
     final tier = _status?['tier'] ?? 'trial';
     final isVip = _status?['is_vip'] ?? false;
 
@@ -134,7 +205,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         gradient: LinearGradient(
           colors: isVip
               ? [const Color(0xFF8E44AD), const Color(0xFF3498DB)]
-              : [colors.primary, colors.primary.withValues(alpha: 0.7)],
+              : [colors.primary, const Color(0xFF059669)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -209,7 +280,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final selected = _selectedMonths == months;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedMonths = months),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _selectedMonths = months);
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
@@ -239,8 +313,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final features = (p['features'] as List<dynamic>?) ?? [];
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedPlanKey = key),
-      child: Container(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _selectedPlanKey = key);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -283,17 +361,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       Text(
                         price == 0
                             ? "Bepul"
-                            : "${_formatMoney(totalPrice.toInt())} so'm / ${_selectedMonths} oy",
+                            : "${_formatMoney(totalPrice.toInt())} so'm / $_selectedMonths oy",
                         style: TextStyle(color: colors.primary, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                 ),
-                Radio<String>(
-                  value: key,
-                  groupValue: _selectedPlanKey,
-                  onChanged: (v) => setState(() => _selectedPlanKey = v!),
-                  activeColor: colors.primary,
+                Icon(
+                  isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                  color: isSelected ? colors.primary : colors.textSecondary,
                 ),
               ],
             ),
@@ -304,7 +380,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle_rounded, color: Color(0xFF2ECC71), size: 18),
+                      const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -329,6 +405,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   label: Text(_isActivating ? "Faollashtirilmoqda..." : "Payme / Click orqali faollashtirish"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isBest ? Colors.purple : colors.primary,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                 ),

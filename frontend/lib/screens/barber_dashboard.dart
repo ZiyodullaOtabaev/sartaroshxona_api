@@ -8,6 +8,8 @@ import 'package:sartaroshxona/screens/working_days_screen.dart';
 import 'package:sartaroshxona/screens/change_password_screen.dart';
 import 'package:sartaroshxona/screens/chat_screen.dart';
 import 'package:sartaroshxona/screens/subscription_screen.dart';
+import 'package:flutter/services.dart';
+import 'package:sartaroshxona/widgets/user_avatar.dart';
 import 'package:sartaroshxona/widgets/qr_card_dialog.dart';
 
 class BarberDashboard extends StatefulWidget {
@@ -70,6 +72,7 @@ class _BarberDashboardState extends State<BarberDashboard> {
   }
 
   Future<void> _toggleOnline() async {
+    HapticFeedback.mediumImpact();
     final newStatus = !_isOnline;
     setState(() => _isOnline = newStatus);
     await ApiService().updateOnlineStatus(widget.barberId, newStatus);
@@ -98,7 +101,10 @@ class _BarberDashboardState extends State<BarberDashboard> {
       bottomNavigationBar: NavigationBar(
         backgroundColor: colors.surface,
         selectedIndex: _currentTab,
-        onDestinationSelected: (i) => setState(() => _currentTab = i),
+        onDestinationSelected: (i) {
+          HapticFeedback.selectionClick();
+          setState(() => _currentTab = i);
+        },
         indicatorColor: colors.primary.withValues(alpha: 0.15),
         destinations: [
           NavigationDestination(
@@ -1383,13 +1389,11 @@ class _BarberDashboardState extends State<BarberDashboard> {
           decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(20)),
           child: Row(
             children: [
-              CircleAvatar(
+              UserAvatar(
+                name: widget.barberName,
+                avatarUrl: _stats['avatar_url'],
                 radius: 28,
-                backgroundColor: colors.primary.withValues(alpha: 0.15),
-                child: Text(
-                  widget.barberName.isNotEmpty ? widget.barberName[0].toUpperCase() : 'S',
-                  style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 22),
-                ),
+                isVip: _stats['is_vip'] ?? false,
               ),
               const SizedBox(width: 14),
               Expanded(

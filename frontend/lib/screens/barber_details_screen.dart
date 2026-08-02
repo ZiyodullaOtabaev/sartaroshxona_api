@@ -4,8 +4,10 @@ import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/services/api_service.dart';
 import 'package:sartaroshxona/screens/payment_screen.dart';
 import 'package:sartaroshxona/screens/chat_screen.dart';
+import 'package:flutter/services.dart';
 import 'package:sartaroshxona/utils/auth_guard.dart';
 import 'package:sartaroshxona/widgets/premium_components.dart';
+import 'package:sartaroshxona/widgets/user_avatar.dart';
 
 class BarberDetailsScreen extends StatefulWidget {
   final Barber barber;
@@ -258,46 +260,11 @@ class _BarberDetailsScreenState extends State<BarberDetailsScreen>
                   Stack(
                     alignment: Alignment.center,
                     children: [
-                      Container(
-                        width: 108,
-                        height: 108,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: colors.primary.withOpacity(0.4), width: 3),
-                        ),
-                      ),
-                      Container(
-                        width: 98,
-                        height: 98,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [colors.primary, colors.primaryLight],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colors.primary.withOpacity(0.4),
-                              blurRadius: 24,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: widget.barber.avatarUrl != null && widget.barber.avatarUrl!.isNotEmpty
-                            ? ClipOval(child: Image.network(widget.barber.avatarUrl!, fit: BoxFit.cover))
-                            : Center(
-                          child: Text(
-                            widget.barber.name.isNotEmpty
-                                ? widget.barber.name[0].toUpperCase()
-                                : 'S',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 40,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                      UserAvatar(
+                        name: widget.barber.name,
+                        avatarUrl: widget.barber.avatarUrl,
+                        radius: 49,
+                        isVip: widget.barber.isVip,
                       ),
                       // Online badge
                       Positioned(

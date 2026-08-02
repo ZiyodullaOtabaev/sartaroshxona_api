@@ -306,6 +306,26 @@ class ApiService {
     return response != null && response.statusCode == 200;
   }
 
+  Future<String?> uploadAvatar(int id, File file) async {
+    try {
+      final token = await getToken();
+      final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload_avatar/$id'));
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+      final streamedResponse = await request.send().timeout(_timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['avatar_url']?.toString();
+      }
+    } catch (e) {
+      _logError('uploadAvatar', e);
+    }
+    return null;
+  }
+
   Future<bool> updateWorkingDays(int barberId, List<int> days) async {
     try {
       final headers = await _headers();

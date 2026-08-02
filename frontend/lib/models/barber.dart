@@ -14,6 +14,7 @@ class Barber {
   final String? specialization;
   final String? phone;
   final bool isOnline;
+  final bool isVip;
   final String? avatarUrl;
   final String? bio;
   final String? workingHoursStart;
@@ -38,6 +39,7 @@ class Barber {
     this.specialization,
     this.phone,
     this.isOnline = true,
+    this.isVip = false,
     this.avatarUrl,
     this.bio,
     this.workingHoursStart,
@@ -65,6 +67,7 @@ class Barber {
       specialization: json['specialization']?.toString(),
       phone: json['phone']?.toString(),
       isOnline: json['is_online'] == true || json['is_online'] == 1,
+      isVip: json['is_vip'] == true || json['is_vip'] == 1,
       avatarUrl: json['avatar_url']?.toString(),
       bio: json['bio']?.toString(),
       workingHoursStart: json['working_hours_start']?.toString(),
@@ -195,7 +198,16 @@ class Barber {
   String get statusText => isOnline ? 'Online' : 'Offline';
 
   /// Avatar bor-yo'qligini tekshirish
-  bool get hasAvatar => avatarUrl != null && avatarUrl!.isNotEmpty;
+  bool get hasAvatar => avatarUrl != null && avatarUrl!.trim().isNotEmpty;
+
+  /// To'liq Avatar URL manzili (Server base URL bilan)
+  String get fullAvatarUrl {
+    if (!hasAvatar) return '';
+    final url = avatarUrl!.trim();
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('/')) return 'https://sartaroshxona-api-ly5e.onrender.com$url';
+    return 'https://sartaroshxona-api-ly5e.onrender.com/$url';
+  }
 
   /// Ismning birinchi harfi (avatar uchun)
   String get initial => name.isNotEmpty ? name[0].toUpperCase() : 'S';

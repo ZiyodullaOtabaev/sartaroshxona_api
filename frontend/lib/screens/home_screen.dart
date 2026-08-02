@@ -14,7 +14,8 @@ import 'package:sartaroshxona/widgets/shimmer_loading.dart';
 import 'package:sartaroshxona/widgets/filter_bottom_sheet.dart';
 import 'package:sartaroshxona/utils/page_transitions.dart';
 import 'package:sartaroshxona/utils/auth_guard.dart';
-import 'package:sartaroshxona/screens/role_selection_screen.dart';
+import 'package:flutter/services.dart';
+import 'package:sartaroshxona/widgets/user_avatar.dart';
 import 'package:sartaroshxona/widgets/glass.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -598,22 +599,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final cardChild = Row(
       children: [
         // Avatar — glow ring agar online bo'lsa
-        Container(
-          width: 62, height: 62,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(colors: [colors.primary.withOpacity(0.85), colors.primaryLight]),
-            boxShadow: online
-                ? [BoxShadow(color: colors.primary.withOpacity(0.4), blurRadius: 14, spreadRadius: -2)]
-                : null,
-          ),
-          child: barber.avatarUrl != null && barber.avatarUrl!.isNotEmpty
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(barber.avatarUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _avatarLetter(barber)),
-                )
-              : _avatarLetter(barber),
+        UserAvatar(
+          name: barber.name,
+          avatarUrl: barber.avatarUrl,
+          radius: 30,
+          isVip: barber.isVip,
         ),
         const SizedBox(width: 14),
         Expanded(

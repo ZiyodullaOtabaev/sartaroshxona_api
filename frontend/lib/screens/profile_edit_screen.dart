@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/services/api_service.dart';
 import 'package:sartaroshxona/widgets/premium_components.dart';
+import 'package:sartaroshxona/widgets/user_avatar.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final int barberId;
@@ -168,7 +170,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen>
     // Yangi rasm tanlangan bo'lsa — serverga yuklash
     bool avatarOk = true;
     if (_pickedImage != null) {
-      final url = await ApiService().uploadAvatar(widget.barberId, _pickedImage!.path);
+      final url = await ApiService().uploadAvatar(widget.barberId, _pickedImage!);
       avatarOk = url != null;
       if (url != null && mounted) {
         setState(() {
@@ -252,27 +254,23 @@ class _ProfileEditScreenState extends State<ProfileEditScreen>
                   onTap: _pickImage,
                   child: Stack(
                     children: [
-                      Container(
-                        width: 110,
-                        height: 110,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(colors: [colors.primary, colors.primaryLight]),
-                          boxShadow: [
-                            BoxShadow(color: colors.primary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8)),
-                          ],
-                        ),
-                        child: _pickedImage != null
-                            ? ClipOval(child: Image.file(_pickedImage!, fit: BoxFit.cover, width: 110, height: 110))
-                            : (_currentAvatarUrl != null && _currentAvatarUrl!.isNotEmpty)
-                            ? ClipOval(child: Image.network(_currentAvatarUrl!, fit: BoxFit.cover, width: 110, height: 110))
-                            : Center(
-                          child: Text(
-                            _nameCtrl.text.isNotEmpty ? _nameCtrl.text[0].toUpperCase() : 'S',
-                            style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
+                      _pickedImage != null
+                          ? Container(
+                              width: 110,
+                              height: 110,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(color: colors.primary.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8)),
+                                ],
+                              ),
+                              child: ClipOval(child: Image.file(_pickedImage!, fit: BoxFit.cover, width: 110, height: 110)),
+                            )
+                          : UserAvatar(
+                              name: _nameCtrl.text,
+                              avatarUrl: _currentAvatarUrl,
+                              radius: 55,
+                            ),
                       Positioned(
                         bottom: 0,
                         right: 0,

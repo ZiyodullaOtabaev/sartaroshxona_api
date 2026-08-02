@@ -97,7 +97,18 @@ class _UserProfileScreenState extends State<UserProfileScreen>
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: source, maxWidth: 512, maxHeight: 512, imageQuality: 80);
     if (picked != null) {
-      setState(() => _pickedImage = File(picked.path));
+      final file = File(picked.path);
+      setState(() => _pickedImage = file);
+      final uploadedUrl = await ApiService().uploadAvatar(widget.userId, file);
+      if (uploadedUrl != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Profil rasmi muvaffaqiyatli saqlandi!"),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 

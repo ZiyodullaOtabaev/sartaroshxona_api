@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/services/api_service.dart';
+import 'package:sartaroshxona/widgets/user_avatar.dart';
 
 class OwnerStaffScreen extends StatefulWidget {
   final int userId;
@@ -189,13 +190,11 @@ class _OwnerStaffScreenState extends State<OwnerStaffScreen> with SingleTickerPr
               // Avatar
               Stack(
                 children: [
-                  CircleAvatar(
+                  UserAvatar(
+                    name: barber['name'] ?? 'B',
+                    avatarUrl: barber['avatar_url'],
                     radius: 26,
-                    backgroundColor: colors.primary.withValues(alpha: 0.12),
-                    child: Text(
-                      (barber['name'] ?? 'B')[0].toUpperCase(),
-                      style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 20),
-                    ),
+                    isVip: barber['is_vip'] == 1 || barber['is_vip'] == true,
                   ),
                   Positioned(
                     bottom: 0, right: 0,

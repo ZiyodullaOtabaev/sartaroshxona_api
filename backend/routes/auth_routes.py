@@ -493,11 +493,12 @@ async def upload_barber_avatar(barber_id: int, file: UploadFile = File(...)):
         filepath = f"uploads/avatars/{filename}"
         with open(filepath, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        avatar_url = f"{SERVER_BASE_URL}/uploads/avatars/{filename}"
+        avatar_url = f"/uploads/avatars/{filename}"
         conn = await get_conn()
         try:
             async with conn.cursor() as cur:
-                await cur.execute("UPDATE barbers SET avatar_url=%s WHERE id=%s", (avatar_url, barber_id))
+                await cur.execute("UPDATE barbers SET avatar_url=%s WHERE id=%s OR user_id=%s", (avatar_url, barber_id, barber_id))
+                await cur.execute("UPDATE users SET avatar_url=%s WHERE id=%s", (avatar_url, barber_id))
                 await conn.commit()
         finally:
             await release_conn(conn)
