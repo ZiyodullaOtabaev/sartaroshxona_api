@@ -87,8 +87,8 @@ async def get_barber_detail(barber_id: int):
     try:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute(
-                "SELECT b.*, u.email FROM barbers b JOIN users u ON b.user_id = u.id WHERE b.id=%s",
-                (barber_id,),
+                "SELECT b.*, u.email FROM barbers b JOIN users u ON b.user_id = u.id WHERE b.id=%s OR b.user_id=%s",
+                (barber_id, barber_id),
             )
             barber = await cur.fetchone()
             if not barber:
@@ -161,15 +161,22 @@ async def update_online(barber_id: int, is_online: bool):
 async def update_working_days(barber_id: int, days: List[int]):
     conn = await get_conn()
     try:
-        async with conn.cursor() as cur:
-            await cur.execute("DELETE FROM barber_working_days WHERE barber_id=%s", (barber_id,))
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT id FROM barbers WHERE id=%s OR user_id=%s", (barber_id, barber_id))
+            row = await cur.fetchone()
+            real_barber_id = row['id'] if row else barber_id
+
+            await cur.execute("DELETE FROM barber_working_days WHERE barber_id=%s", (real_barber_id,))
             for day in range(7):
                 await cur.execute(
                     "INSERT INTO barber_working_days (barber_id, day_of_week, is_working) VALUES (%s,%s,%s)",
-                    (barber_id, day, day in days),
+                    (real_barber_id, day, day in days),
                 )
             await conn.commit()
             return {"status": "success"}
+    except Exception as e:
+        await conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         await release_conn(conn)
 
