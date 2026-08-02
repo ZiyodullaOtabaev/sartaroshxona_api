@@ -187,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   final b = Barber.fromJson(barberDetail);
                   Navigator.push(
                     context,
-                    PageTransitions.fade(BarberDetailsScreen(barber: b, customerId: widget.userId)),
+                    MaterialPageRoute(builder: (_) => BarberDetailsScreen(barber: b, userId: widget.userId)),
                   );
                 } else if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
