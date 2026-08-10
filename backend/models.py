@@ -30,6 +30,27 @@ class UserLogin(BaseModel):
     password: str
 
 
+class PhoneAuthRequest(BaseModel):
+    phone: str
+    full_name: Optional[str] = None
+    role: Optional[str] = "customer"  # customer, barber, owner
+    firebase_uid: Optional[str] = None
+    password: Optional[str] = None
+    experience: Optional[str] = None
+    specialization: Optional[str] = None
+    bio: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    salon_name: Optional[str] = None
+    salon_address: Optional[str] = None
+    also_barber: bool = False
+
+
+class PhoneLoginPasswordRequest(BaseModel):
+    phone: str
+    password: str
+
+
 class ChangePassword(BaseModel):
     user_id: int
     old_password: str

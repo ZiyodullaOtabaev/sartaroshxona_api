@@ -6,6 +6,7 @@ import 'package:sartaroshxona/screens/login_screen.dart';
 import 'package:sartaroshxona/screens/verify_email_screen.dart';
 import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/utils/app_constants.dart';
+import 'package:sartaroshxona/screens/phone_auth_screen.dart';
 import 'package:sartaroshxona/widgets/premium_components.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -520,6 +521,38 @@ class _RegisterScreenState extends State<RegisterScreen>
                 ),
 
                 const SizedBox(height: 16),
+
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: colors.border)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text("yoki", style: TextStyle(color: colors.textTertiary, fontSize: 12)),
+                    ),
+                    Expanded(child: Divider(color: colors.border)),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => PhoneAuthScreen(initialRole: widget.selectedRole)),
+                    ),
+                    icon: Icon(Icons.phone_iphone_rounded, size: 20, color: colors.primary),
+                    label: Text("SMS kod orqali ro'yxatdan o'tish", style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: colors.primary.withValues(alpha: 0.5)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
 
                 // Login ga o'tish
                 Row(

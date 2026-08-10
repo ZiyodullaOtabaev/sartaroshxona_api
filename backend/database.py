@@ -274,6 +274,10 @@ async def init_tables():
                     "ALTER TABLE barbers ADD COLUMN is_vip BOOLEAN DEFAULT FALSE AFTER subscription_expires_at",
                     "ALTER TABLE salons ADD COLUMN subscription_tier VARCHAR(20) DEFAULT 'trial' AFTER rating",
                     "ALTER TABLE salons ADD COLUMN subscription_expires_at DATETIME DEFAULT NULL AFTER subscription_tier",
+                    "ALTER TABLE users MODIFY COLUMN email VARCHAR(120) NULL",
+                    "ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL",
+                    "ALTER TABLE users ADD COLUMN firebase_uid VARCHAR(128) NULL AFTER phone",
+                    "ALTER TABLE users ADD INDEX idx_phone (phone)",
                 ]
                 for stmt in alter_statements:
                     try:

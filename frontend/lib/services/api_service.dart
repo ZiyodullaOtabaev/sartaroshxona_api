@@ -197,6 +197,58 @@ class ApiService {
     return {"error": "Ro'yxatdan o'tishda xatolik"};
   }
 
+  Future<Map<String, dynamic>?> phoneAuth({
+    required String phone,
+    String? fullName,
+    String role = "customer",
+    String? firebaseUid,
+    String? password,
+    String? experience,
+    String? specialization,
+    String? bio,
+    double? lat,
+    double? lng,
+    String? salonName,
+    String? salonAddress,
+    bool alsoBarber = false,
+  }) async {
+    final body = {
+      "phone": phone,
+      "full_name": fullName,
+      "role": role,
+      "firebase_uid": firebaseUid,
+      "password": password,
+      "experience": experience,
+      "specialization": specialization,
+      "bio": bio,
+      "lat": lat ?? AppConstants.defaultLat,
+      "lng": lng ?? AppConstants.defaultLng,
+      "salon_name": salonName,
+      "salon_address": salonAddress,
+      "also_barber": alsoBarber,
+    };
+
+    final response = await _post('/phone_auth', body: body);
+    if (response == null) return null;
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      if (data['token'] != null) {
+        await setToken(data['token']);
+      }
+      if (data['user'] != null) {
+        final u = data['user'];
+        await saveUserData(
+          userId: u['id'],
+          role: u['role'] ?? role,
+          name: u['full_name'] ?? fullName ?? "Foydalanuvchi",
+        );
+      }
+      return data;
+    }
+    return {"error": "Server bilan ulanishda xatolik"};
+  }
+
   Future<Map<String, dynamic>?> loginUser(String email, String password) async {
     final response = await _post('/login', body: {
       "email": email,

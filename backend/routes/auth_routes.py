@@ -20,6 +20,7 @@ from auth import hash_password, create_access_token, verify_token, pwd_context
 from models import (
     UserRegister, UserLogin, ChangePassword,
     VerifyEmail, ForgotPassword, ResetPassword, TokenRefresh,
+    PhoneAuthRequest, PhoneLoginPasswordRequest,
 )
 from services.email_service import generate_otp, send_verification_email, send_password_reset_email
 from services.sms_service import send_sms_otp
@@ -249,6 +250,133 @@ async def resend_verification(email: str):
                     print(f"[Resend] SMS error: {sms_err}")
 
             return {"status": "success", "message": "Yangi tasdiqlash kodi yuborildi"}
+    finally:
+        await release_conn(conn)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIREBASE PHONE AUTH (SMS orqali Ro'yxatdan o'tish va Kirish)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/phone_auth")
+async def phone_auth(data: PhoneAuthRequest, request: Request):
+    """
+    Firebase Phone Auth orqali telefon raqam bilan to'g'ridan-to'g'ri kirish / ro'yxatdan o'tish.
+    SMS kod Firebase tomonidan tasdiqlanganidan so'ng chaqiriladi.
+    """
+    phone = data.phone.strip().replace(" ", "").replace("-", "")
+    if not phone.startswith("+") and len(phone) == 9:
+        phone = f"+998{phone}"
+    elif not phone.startswith("+") and len(phone) == 12:
+        phone = f"+{phone}"
+
+    conn = await get_conn()
+    try:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            # 1. Foydalanuvchi mavjudligini tekshirish
+            await cur.execute(
+                "SELECT u.id, u.full_name, u.email, u.role, u.phone, u.loyalty_points, "
+                "b.id as barber_id, b.salon_id as barber_salon_id, b.is_online, b.rating, "
+                "b.specialization, b.bio, b.avatar_url, b.working_hours_start, "
+                "b.working_hours_end, b.verification_status, "
+                "s.id as owned_salon_id, s.name as salon_name "
+                "FROM users u LEFT JOIN barbers b ON u.id = b.user_id "
+                "LEFT JOIN salons s ON u.id = s.owner_id WHERE u.phone=%s",
+                (phone,),
+            )
+            existing_user = await cur.fetchone()
+
+            if existing_user:
+                # Mavjud foydalanuvchi — to'g'ridan-to'g'ri login qilamiz
+                if data.firebase_uid:
+                    try:
+                        await cur.execute("UPDATE users SET firebase_uid=%s WHERE id=%s", (data.firebase_uid, existing_user["id"]))
+                        await conn.commit()
+                    except Exception:
+                        pass
+
+                token = create_access_token({
+                    "user_id": existing_user["id"], "role": existing_user["role"], "email": existing_user.get("email") or "",
+                })
+                if existing_user.get("working_hours_start"):
+                    existing_user["working_hours_start"] = timedelta_to_str(existing_user["working_hours_start"])
+                if existing_user.get("working_hours_end"):
+                    existing_user["working_hours_end"] = timedelta_to_str(existing_user["working_hours_end"])
+
+                return {
+                    "status": "success",
+                    "is_new_user": False,
+                    "token": token,
+                    "user": existing_user,
+                    "message": "Tizimga muvaffaqiyatli kirildi",
+                }
+
+            # 2. Yangi foydalanuvchi — Ro'yxatdan o'tkazish
+            full_name = data.full_name.strip() if data.full_name else f"Mijoz ({phone[-4:]})"
+            role = data.role or "customer"
+            password_hash = hash_password(data.password) if data.password else None
+
+            # Referal kod yaratish
+            raw_code = f"REF{uuid.uuid4().hex[:6].upper()}"
+
+            await cur.execute(
+                "INSERT INTO users (full_name, phone, password_hash, role, firebase_uid, email_verified, referral_code) "
+                "VALUES (%s,%s,%s,%s,%s,TRUE,%s)",
+                (full_name, phone, password_hash, role, data.firebase_uid, raw_code),
+            )
+            user_id = cur.lastrowid
+            barber_id = None
+            salon_id = None
+
+            if role == "barber":
+                await cur.execute(
+                    "INSERT INTO barbers (user_id, name, experience, phone, specialization, bio, lat, lng, "
+                    "rating, total_reviews, district, verification_status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,5.0,0,'Toshkent','approved')",
+                    (user_id, full_name, data.experience or "", phone,
+                     data.specialization or "", data.bio or "", data.lat or 41.2995, data.lng or 69.2401),
+                )
+                barber_id = cur.lastrowid
+                for day in range(1, 7):
+                    await cur.execute(
+                        "INSERT INTO barber_working_days (barber_id, day_of_week, is_working) VALUES (%s,%s,1)",
+                        (barber_id, day),
+                    )
+            elif role == "owner":
+                salon_name = data.salon_name or f"{full_name} sartaroshxonasi"
+                await cur.execute(
+                    "INSERT INTO salons (owner_id, name, address, phone, lat, lng, description) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                    (user_id, salon_name, data.salon_address or "Toshkent", phone,
+                     data.lat or 41.2995, data.lng or 69.2401, data.bio or ""),
+                )
+                salon_id = cur.lastrowid
+
+            await conn.commit()
+
+            token = create_access_token({"user_id": user_id, "role": role, "email": ""})
+
+            user_obj = {
+                "id": user_id,
+                "full_name": full_name,
+                "phone": phone,
+                "role": role,
+                "loyalty_points": 0,
+                "barber_id": barber_id,
+                "owned_salon_id": salon_id,
+            }
+
+            return {
+                "status": "success",
+                "is_new_user": True,
+                "token": token,
+                "user": user_obj,
+                "message": "Ro'yxatdan muvaffaqiyatli o'tildi",
+            }
+    except Exception as e:
+        await conn.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Phone Auth: {str(e)}")
     finally:
         await release_conn(conn)
 
