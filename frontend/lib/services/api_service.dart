@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sartaroshxona/models/barber.dart';
@@ -358,18 +359,20 @@ class ApiService {
     return response != null && response.statusCode == 200;
   }
 
-  Future<String?> uploadAvatar(int id, File file) async {
+  Future<String?> uploadAvatar(int id, dynamic fileOrPath) async {
     try {
       final token = await getToken();
       final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload_avatar/$id'));
       if (token != null) {
         request.headers['Authorization'] = 'Bearer $token';
       }
-      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+      final path = fileOrPath is File ? fileOrPath.path : fileOrPath.toString();
+      request.files.add(await http.MultipartFile.fromPath('file', path));
       final streamedResponse = await request.send().timeout(_timeout);
       final response = await http.Response.fromStream(streamedResponse);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        clearCache();
         return data['avatar_url']?.toString();
       }
     } catch (e) {
@@ -962,33 +965,6 @@ class ApiService {
       } catch (_) {}
     }
     return {'success': false, 'error': "Serverda xatolik. Keyinroq urinib ko'ring."};
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // AVATAR YUKLASH
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /// Sartarosh avatarini yuklash (multipart). Muvaffaqiyatli bo'lsa avatar_url qaytaradi.
-  Future<String?> uploadAvatar(int barberId, String imagePath) async {
-    try {
-      final token = await getToken();
-      final uri = Uri.parse('$baseUrl/upload_avatar/$barberId');
-      final request = http.MultipartRequest('POST', uri);
-      if (token != null) request.headers['Authorization'] = 'Bearer $token';
-      request.files.add(await http.MultipartFile.fromPath('file', imagePath));
-      final streamed = await request.send().timeout(_timeout);
-      final response = await http.Response.fromStream(streamed);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        clearCache();
-        return data['avatar_url'] as String?;
-      }
-      _logError('uploadAvatar', 'status ${response.statusCode}');
-      return null;
-    } catch (e) {
-      _logError('uploadAvatar', e);
-      return null;
-    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
