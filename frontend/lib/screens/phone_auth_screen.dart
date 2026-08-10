@@ -176,7 +176,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
         final salonId = userData['owned_salon_id'] ?? 1;
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => OwnerDashboardScreen(ownerId: userId, salonId: salonId, ownerName: name)),
+          MaterialPageRoute(builder: (_) => OwnerDashboardScreen(userId: userId, salonId: salonId, ownerName: name)),
           (r) => false,
         );
       } else {
