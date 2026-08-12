@@ -10,6 +10,7 @@ import 'package:sartaroshxona/screens/login_screen.dart';
 import 'package:sartaroshxona/screens/notifications_screen.dart';
 import 'package:sartaroshxona/screens/favorites_screen.dart';
 import 'package:sartaroshxona/screens/payment_history_screen.dart';
+import 'package:sartaroshxona/screens/role_selection_screen.dart';
 import 'package:sartaroshxona/widgets/shimmer_loading.dart';
 import 'package:sartaroshxona/widgets/filter_bottom_sheet.dart';
 import 'package:sartaroshxona/utils/page_transitions.dart';
