@@ -2,6 +2,8 @@
 # DATABASE — Connection pool, helper funksiyalar
 # =====================================================
 
+import os
+import ssl
 import math
 import datetime
 
@@ -16,9 +18,29 @@ from config import DB_CONFIG
 pool: aiomysql.Pool = None
 
 
+def _build_ssl():
+    """
+    Aiven uchun SSL konfiguratsiya.
+    ssl=True ishlatiladi — bu aiomysql da eng ishonchli usul.
+    Aiven sertifikatlari Let's Encrypt bilan imzolangan, shuning uchun
+    system CA dan tekshirish mumkin.
+    """
+    host = os.getenv("DB_HOST", "")
+    if "aiven" not in host:
+        return None
+
+    # 1-usul: ssl=True (oddiy, Aiven CA ni tizim orqali tekshiradi)
+    # Aiven sertifikatlari ishonchli CA bilan imzolangan
+    return True
+
+
 async def create_pool():
     """DB connection pool yaratish (lifespan boshida chaqiriladi)."""
     global pool
+
+    ssl_param = _build_ssl()
+    print(f"[DB] Ulanish: host={DB_CONFIG['host']}, port={DB_CONFIG['port']}, ssl={'yoqildi' if ssl_param else 'oʼhirildi'}")
+
     pool_config = {
         "host": DB_CONFIG["host"],
         "port": DB_CONFIG["port"],
@@ -29,10 +51,20 @@ async def create_pool():
         "minsize": DB_CONFIG["minsize"],
         "maxsize": DB_CONFIG["maxsize"],
     }
-    if "ssl" in DB_CONFIG:
-        pool_config["ssl"] = DB_CONFIG["ssl"]
-    pool = await aiomysql.create_pool(**pool_config)
-    print("Database connection pool yaratildi")
+
+    if ssl_param is not None:
+        pool_config["ssl"] = ssl_param
+
+    try:
+        pool = await aiomysql.create_pool(**pool_config)
+        print("[DB] Connection pool muvaffaqiyatli yaratildi ✅")
+    except Exception as e:
+        print(f"[DB] ssl=True bilan ulanmadi ({e}), ssl=False bilan qayta urinilmoqda...")
+        # Fallback: SSL o'chirib urinib ko'ramiz
+        pool_config.pop("ssl", None)
+        pool = await aiomysql.create_pool(**pool_config)
+        print("[DB] SSL o'chirilgan holda ulanildi")
+
     return pool
 
 
@@ -51,17 +83,17 @@ async def init_tables():
         conn = await pool.acquire()
         try:
             async with conn.cursor() as cur:
-                # ─── ASOSIY JADVALLAR ────────────────────────────────────
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS users ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
                     "full_name VARCHAR(100) NOT NULL, "
-                    "email VARCHAR(120) NOT NULL UNIQUE, "
+                    "email VARCHAR(120) NULL, "
                     "email_verified BOOLEAN DEFAULT FALSE, "
-                    "password_hash VARCHAR(255) NOT NULL, "
+                    "password_hash VARCHAR(255) NULL, "
                     "role ENUM('customer','barber','owner') NOT NULL DEFAULT 'customer', "
                     "avatar_url VARCHAR(255), "
                     "phone VARCHAR(30), "
+                    "firebase_uid VARCHAR(128) NULL, "
                     "loyalty_points INT DEFAULT 0, "
                     "referral_code VARCHAR(20) UNIQUE, "
                     "referral_balance DECIMAL(10,2) DEFAULT 0, "
@@ -83,6 +115,9 @@ async def init_tables():
                     "bio TEXT, "
                     "lat DOUBLE, lng DOUBLE, "
                     "district VARCHAR(100) DEFAULT 'Toshkent', "
+                    "subscription_tier VARCHAR(20) DEFAULT 'trial', "
+                    "subscription_expires_at DATETIME DEFAULT NULL, "
+                    "is_vip BOOLEAN DEFAULT FALSE, "
                     "rating FLOAT DEFAULT 5.0, "
                     "total_reviews INT DEFAULT 0, "
                     "is_online BOOLEAN DEFAULT TRUE, "
@@ -112,6 +147,8 @@ async def init_tables():
                     "working_hours_end TIME DEFAULT '20:00:00', "
                     "rating FLOAT DEFAULT 5.0, "
                     "total_reviews INT DEFAULT 0, "
+                    "subscription_tier VARCHAR(20) DEFAULT 'trial', "
+                    "subscription_expires_at DATETIME DEFAULT NULL, "
                     "is_active BOOLEAN DEFAULT TRUE, "
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
@@ -251,39 +288,6 @@ async def init_tables():
                     "FOREIGN KEY (barber_id) REFERENCES barbers(id) ON DELETE CASCADE"
                     ")"
                 )
-                # ─── QOSHIMCHA JADVALLAR ─────────────────────────────────
-                # Yetishmagan ustunlarni qo'shish (eski DB'lar uchun)
-                alter_statements = [
-                    "ALTER TABLE users MODIFY COLUMN role ENUM('customer','barber','owner') NOT NULL DEFAULT 'customer'",
-                    "ALTER TABLE barbers ADD COLUMN salon_id INT NULL AFTER user_id",
-                    "ALTER TABLE barbers ADD COLUMN is_accepting_bookings BOOLEAN DEFAULT TRUE AFTER is_online",
-                    "ALTER TABLE barbers ADD COLUMN verification_status ENUM('pending','approved','rejected') DEFAULT 'approved' AFTER is_accepting_bookings",
-                    "ALTER TABLE barbers ADD COLUMN slot_duration_minutes INT DEFAULT 30 AFTER working_hours_end",
-                    "ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE AFTER email",
-                    "ALTER TABLE users ADD COLUMN referral_code VARCHAR(20) UNIQUE AFTER loyalty_points",
-                    "ALTER TABLE users ADD COLUMN referral_balance DECIMAL(10,2) DEFAULT 0 AFTER referral_code",
-                    "ALTER TABLE users ADD COLUMN referred_by INT NULL AFTER referral_balance",
-                    "ALTER TABLE users ADD COLUMN referral_count INT DEFAULT 0 AFTER referred_by",
-                    "ALTER TABLE payments ADD COLUMN platform_fee DECIMAL(10,2) DEFAULT 0 AFTER amount",
-                    "ALTER TABLE payments ADD COLUMN barber_amount DECIMAL(10,2) DEFAULT 0 AFTER platform_fee",
-                    "ALTER TABLE appointments ADD COLUMN commission_amount DECIMAL(10,2) DEFAULT 0 AFTER price",
-                    "ALTER TABLE appointments ADD COLUMN total_charged DECIMAL(10,2) DEFAULT 0 AFTER commission_amount",
-                    "ALTER TABLE appointments MODIFY COLUMN payment_method ENUM('cash','card','click','payme','loyalty') DEFAULT 'cash'",
-                    "ALTER TABLE barbers ADD COLUMN subscription_tier VARCHAR(20) DEFAULT 'trial' AFTER district",
-                    "ALTER TABLE barbers ADD COLUMN subscription_expires_at DATETIME DEFAULT NULL AFTER subscription_tier",
-                    "ALTER TABLE barbers ADD COLUMN is_vip BOOLEAN DEFAULT FALSE AFTER subscription_expires_at",
-                    "ALTER TABLE salons ADD COLUMN subscription_tier VARCHAR(20) DEFAULT 'trial' AFTER rating",
-                    "ALTER TABLE salons ADD COLUMN subscription_expires_at DATETIME DEFAULT NULL AFTER subscription_tier",
-                    "ALTER TABLE users MODIFY COLUMN email VARCHAR(120) NULL",
-                    "ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL",
-                    "ALTER TABLE users ADD COLUMN firebase_uid VARCHAR(128) NULL AFTER phone",
-                    "ALTER TABLE users ADD INDEX idx_phone (phone)",
-                ]
-                for stmt in alter_statements:
-                    try:
-                        await cur.execute(stmt)
-                    except Exception:
-                        pass  # Ustun allaqachon mavjud — skip
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS messages ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -314,7 +318,6 @@ async def init_tables():
                     "INDEX idx_provider (gateway, provider_trans_id)"
                     ")"
                 )
-                # Loyalty stamps
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS loyalty_stamps ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -329,7 +332,6 @@ async def init_tables():
                     "INDEX idx_stamps_customer (customer_id, is_used, expires_at)"
                     ")"
                 )
-                # Loyalty rewards
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS loyalty_rewards ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -345,7 +347,6 @@ async def init_tables():
                     "INDEX idx_rewards_customer (customer_id, is_redeemed)"
                     ")"
                 )
-                # Referrals
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS referrals ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -362,7 +363,6 @@ async def init_tables():
                     "INDEX idx_referrals_referrer (referrer_id, status)"
                     ")"
                 )
-                # User devices (FCM push token)
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS user_devices ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -377,7 +377,6 @@ async def init_tables():
                     "INDEX idx_devices_user (user_id, is_active)"
                     ")"
                 )
-                # Platform earnings
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS platform_earnings ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -389,7 +388,6 @@ async def init_tables():
                     "INDEX idx_earnings_date (created_at)"
                     ")"
                 )
-                # Email verifications
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS email_verifications ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -405,7 +403,6 @@ async def init_tables():
                     "INDEX idx_user_verify (user_id, is_verified)"
                     ")"
                 )
-                # Password resets
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS password_resets ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -420,7 +417,6 @@ async def init_tables():
                     "INDEX idx_reset_email (email, code)"
                     ")"
                 )
-                # Login attempts
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS login_attempts ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -431,7 +427,6 @@ async def init_tables():
                     "INDEX idx_attempts_email (email, created_at)"
                     ")"
                 )
-                # Subscriptions
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS subscriptions ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
@@ -449,23 +444,16 @@ async def init_tables():
                     ")"
                 )
                 await conn.commit()
-            print("Barcha jadvallar tayyor (messages, gateway, loyalty, referrals, devices, earnings, auth)")
+            print("[DB] Barcha jadvallar tayyor ✅")
         finally:
             pool.release(conn)
     except Exception as e:
-        print(f"Jadvallarni yaratishda ogohlantirish: {e}")
+        print(f"[DB] Jadvallarni yaratishda ogohlantirish: {e}")
 
-
-# =====================================================
-# CONNECTION HELPERS
-# =====================================================
 
 async def get_conn():
-    """Pool'dan ulanish olish. Har safar yangi snapshot uchun rollback qilinadi."""
+    """Pool'dan ulanish olish."""
     conn = await pool.acquire()
-    # MUHIM: autocommit=False bo'lgani uchun pool'dagi ulanish oldingi
-    # tranzaksiyaning eskirgan snapshot'ini ushlab qolishi mumkin (REPEATABLE READ).
-    # Har bir so'rovni yangi snapshot bilan boshlash uchun tranzaksiyani yopamiz.
     try:
         await conn.rollback()
     except Exception:
@@ -477,10 +465,6 @@ async def release_conn(conn):
     """Ulanishni pool'ga qaytarish."""
     pool.release(conn)
 
-
-# =====================================================
-# UTILITY HELPERS
-# =====================================================
 
 def haversine(lat1, lon1, lat2, lon2):
     """Ikki nuqta orasidagi masofani km da hisoblash."""
