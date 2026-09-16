@@ -1,5 +1,6 @@
 # =====================================================
 # DATABASE — Connection pool, helper funksiyalar
+# asyncmy ishlatiladi (aiomysql o'rniga) — Python 3.14 + Aiven SSL uchun
 # =====================================================
 
 import os
@@ -7,7 +8,7 @@ import ssl
 import math
 import datetime
 
-import aiomysql
+import asyncmy
 
 from config import DB_CONFIG
 
@@ -15,31 +16,32 @@ from config import DB_CONFIG
 # CONNECTION POOL
 # =====================================================
 
-pool: aiomysql.Pool = None
+pool: asyncmy.Pool = None
 
 
 def _build_ssl():
     """
-    Aiven uchun SSL konfiguratsiya.
-    ssl=True ishlatiladi — bu aiomysql da eng ishonchli usul.
-    Aiven sertifikatlari Let's Encrypt bilan imzolangan, shuning uchun
-    system CA dan tekshirish mumkin.
+    Aiven uchun SSL context.
+    asyncmy ssl.SSLContext ni to'g'ri qo'llab-quvvatlaydi.
+    check_hostname=False + CERT_NONE => sertifikat tekshirilmaydi.
     """
     host = os.getenv("DB_HOST", "")
     if "aiven" not in host:
         return None
 
-    # 1-usul: ssl=True (oddiy, Aiven CA ni tizim orqali tekshiradi)
-    # Aiven sertifikatlari ishonchli CA bilan imzolangan
-    return True
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    print(f"[DB] Aiven SSL context yaratildi (CERT_NONE)")
+    return ctx
 
 
 async def create_pool():
     """DB connection pool yaratish (lifespan boshida chaqiriladi)."""
     global pool
 
-    ssl_param = _build_ssl()
-    print(f"[DB] Ulanish: host={DB_CONFIG['host']}, port={DB_CONFIG['port']}, ssl={'yoqildi' if ssl_param else 'oʼhirildi'}")
+    ssl_ctx = _build_ssl()
+    print(f"[DB] Ulanish: host={DB_CONFIG['host']}, port={DB_CONFIG['port']}, ssl={'bor' if ssl_ctx else 'yo\'q'}")
 
     pool_config = {
         "host": DB_CONFIG["host"],
@@ -52,19 +54,11 @@ async def create_pool():
         "maxsize": DB_CONFIG["maxsize"],
     }
 
-    if ssl_param is not None:
-        pool_config["ssl"] = ssl_param
+    if ssl_ctx is not None:
+        pool_config["ssl"] = ssl_ctx
 
-    try:
-        pool = await aiomysql.create_pool(**pool_config)
-        print("[DB] Connection pool muvaffaqiyatli yaratildi ✅")
-    except Exception as e:
-        print(f"[DB] ssl=True bilan ulanmadi ({e}), ssl=False bilan qayta urinilmoqda...")
-        # Fallback: SSL o'chirib urinib ko'ramiz
-        pool_config.pop("ssl", None)
-        pool = await aiomysql.create_pool(**pool_config)
-        print("[DB] SSL o'chirilgan holda ulanildi")
-
+    pool = await asyncmy.create_pool(**pool_config)
+    print("[DB] Connection pool muvaffaqiyatli yaratildi ✅")
     return pool
 
 
@@ -80,8 +74,7 @@ async def init_tables():
     """Zarur jadvallarni avtomatik yaratish (idempotent)."""
     global pool
     try:
-        conn = await pool.acquire()
-        try:
+        async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS users ("
@@ -445,8 +438,6 @@ async def init_tables():
                 )
                 await conn.commit()
             print("[DB] Barcha jadvallar tayyor ✅")
-        finally:
-            pool.release(conn)
     except Exception as e:
         print(f"[DB] Jadvallarni yaratishda ogohlantirish: {e}")
 
