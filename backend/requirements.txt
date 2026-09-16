@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-aiomysql
+asyncmy
 python-multipart
 bcrypt
 pydantic
