@@ -13,7 +13,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 
 from database import create_pool, close_pool, init_tables, get_conn, release_conn
 
@@ -112,9 +112,40 @@ app.include_router(subscription_router)
 # ROOT / HEALTH
 # =====================================================
 
-@app.get("/")
-async def root():
+# =====================================================
+# SARTAROSHXONA WEB PLATFORM (ECOSYSTEM PORTAL)
+# =====================================================
+
+_web_dir = None
+for _p in [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "web"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web"),
+    os.path.abspath("web"),
+]:
+    if os.path.exists(os.path.join(_p, "index.html")):
+        _web_dir = _p
+        break
+
+if _web_dir:
+    if os.path.exists(os.path.join(_web_dir, "css")):
+        app.mount("/css", StaticFiles(directory=os.path.join(_web_dir, "css")), name="web_css")
+    if os.path.exists(os.path.join(_web_dir, "js")):
+        app.mount("/js", StaticFiles(directory=os.path.join(_web_dir, "js")), name="web_js")
+    if os.path.exists(os.path.join(_web_dir, "assets")):
+        app.mount("/assets", StaticFiles(directory=os.path.join(_web_dir, "assets")), name="web_assets")
+
+    @app.get("/", response_class=FileResponse)
+    async def root():
+        return FileResponse(os.path.join(_web_dir, "index.html"))
+else:
+    @app.get("/")
+    async def root():
+        return {"message": "Sartaroshxona API ishlayapti", "version": "3.0.0"}
+
+@app.get("/api/status")
+async def api_status():
     return {"message": "Sartaroshxona API ishlayapti", "version": "3.0.0"}
+
 
 
 @app.get("/health")
