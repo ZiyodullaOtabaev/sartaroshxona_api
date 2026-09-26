@@ -21,19 +21,22 @@ pool: asyncmy.Pool = None
 
 def _build_ssl():
     """
-    Aiven uchun SSL context.
-    asyncmy ssl.SSLContext ni to'g'ri qo'llab-quvvatlaydi.
-    check_hostname=False + CERT_NONE => sertifikat tekshirilmaydi.
+    Aiven va TiDB Cloud uchun SSL context.
+    DB_SSL_DISABLED=true bo'lsa SSL o'chiriladi.
     """
-    host = os.getenv("DB_HOST", "")
-    if "aiven" not in host:
+    if os.getenv("DB_SSL_DISABLED", "").lower() in ("true", "1", "yes"):
+        print("[DB] SSL o'chirildi (DB_SSL_DISABLED=true)")
         return None
 
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    print(f"[DB] Aiven SSL context yaratildi (CERT_NONE)")
-    return ctx
+    host = os.getenv("DB_HOST", "")
+    if "aiven" in host or "tidbcloud" in host:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        print(f"[DB] SSL context yaratildi: {host}")
+        return ctx
+
+    return None
 
 
 async def create_pool():
@@ -76,6 +79,10 @@ async def init_tables():
     try:
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
+                # Database avtomatik yaratish (TiDB Cloud uchun)
+                db_name = os.getenv("DB_NAME", "sartaroshxona_db")
+                await cur.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
+                await cur.execute(f"USE `{db_name}`")
                 await cur.execute(
                     "CREATE TABLE IF NOT EXISTS users ("
                     "id INT AUTO_INCREMENT PRIMARY KEY, "
