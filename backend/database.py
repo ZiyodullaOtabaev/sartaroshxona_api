@@ -44,19 +44,40 @@ async def create_pool():
     global pool
 
     ssl_ctx = _build_ssl()
-    print(f"[DB] Ulanish: host={DB_CONFIG['host']}, port={DB_CONFIG['port']}, ssl={'bor' if ssl_ctx else 'yo\'q'}")
+    target_db = DB_CONFIG["db"]
+    print(f"[DB] Ulanish: host={DB_CONFIG['host']}, port={DB_CONFIG['port']}, db={target_db}")
 
+    base_config = {
+        "host": DB_CONFIG["host"],
+        "port": DB_CONFIG["port"],
+        "user": DB_CONFIG["user"],
+        "password": DB_CONFIG["password"],
+        "autocommit": True,
+    }
+    if ssl_ctx is not None:
+        base_config["ssl"] = ssl_ctx
+
+    # 1-qadam: avval database'ni yaratish (sys ga ulanib)
+    try:
+        init_conn = await asyncmy.connect(**base_config)
+        async with init_conn.cursor() as cur:
+            await cur.execute(f"CREATE DATABASE IF NOT EXISTS `{target_db}`")
+        init_conn.close()
+        print(f"[DB] Database '{target_db}' tayyor ✅")
+    except Exception as e:
+        print(f"[DB] Database yaratishda ogohlantirish: {e}")
+
+    # 2-qadam: asosiy pool'ni target database bilan yaratish
     pool_config = {
         "host": DB_CONFIG["host"],
         "port": DB_CONFIG["port"],
         "user": DB_CONFIG["user"],
         "password": DB_CONFIG["password"],
-        "db": DB_CONFIG["db"],
+        "db": target_db,
         "autocommit": DB_CONFIG["autocommit"],
         "minsize": DB_CONFIG["minsize"],
         "maxsize": DB_CONFIG["maxsize"],
     }
-
     if ssl_ctx is not None:
         pool_config["ssl"] = ssl_ctx
 
