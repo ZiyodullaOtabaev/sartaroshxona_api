@@ -1,3 +1,5 @@
+import '../utils/app_constants.dart';
+
 /// Sartarosh modeli
 /// Database: barbers jadvali bilan to'liq moslangan
 class Barber {
@@ -205,8 +207,9 @@ class Barber {
     if (!hasAvatar) return '';
     final url = avatarUrl!.trim();
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    if (url.startsWith('/')) return 'https://sartaroshxona-api-ly5e.onrender.com$url';
-    return 'https://sartaroshxona-api-ly5e.onrender.com/$url';
+    final base = AppConstants.baseUrl;
+    if (url.startsWith('/')) return '$base$url';
+    return '$base/$url';
   }
 
   /// Ismning birinchi harfi (avatar uchun)

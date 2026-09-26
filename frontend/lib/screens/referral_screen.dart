@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sartaroshxona/providers/theme_provider.dart';
 import 'package:sartaroshxona/services/api_service.dart';
+import 'package:sartaroshxona/utils/app_constants.dart';
 
 class ReferralScreen extends StatefulWidget {
   final int userId;
@@ -141,7 +142,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   Widget _buildCodeCard(AppColors colors) {
     final code = _codeData?['referral_code'] ?? '---';
-    final link = _codeData?['referral_link'] ?? 'https://sartaroshxona-api-ly5e.onrender.com/ref/$code';
+    final link = _codeData?['referral_link'] ?? '${AppConstants.baseUrl}/ref/$code';
     final reward = (_codeData?['reward_per_referral'] as num?)?.toInt() ?? 10000;
 
     return Container(

@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:sartaroshxona/widgets/user_avatar.dart';
 import 'package:sartaroshxona/widgets/qr_card_dialog.dart';
 import 'package:sartaroshxona/widgets/language_selector_sheet.dart';
+import 'package:sartaroshxona/utils/app_constants.dart';
 
 class BarberDashboard extends StatefulWidget {
   final String barberName;
@@ -952,10 +953,11 @@ class _BarberDashboardState extends State<BarberDashboard> {
   Widget _hairstyleCard(AppColors colors, dynamic h) {
     String imgUrl = (h['image_url'] ?? '').toString().trim();
     if (imgUrl.isNotEmpty && !imgUrl.startsWith('http://') && !imgUrl.startsWith('https://')) {
+      final base = AppConstants.baseUrl;
       if (imgUrl.startsWith('/')) {
-        imgUrl = 'https://sartaroshxona-api-ly5e.onrender.com$imgUrl';
+        imgUrl = '$base$imgUrl';
       } else {
-        imgUrl = 'https://sartaroshxona-api-ly5e.onrender.com/$imgUrl';
+        imgUrl = '$base/$imgUrl';
       }
     }
 
