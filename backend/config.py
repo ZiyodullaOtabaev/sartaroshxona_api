@@ -74,16 +74,19 @@ DB_CONFIG = {
 }
 
 # ─── AIVEN SSL (SSL majburiy bo'lganda) ────────────────────────────────────────
-# ssl.create_default_context() Python 3.14 + aiomysql da ishlamaydi.
-# ssl.SSLContext(PROTOCOL_TLS_CLIENT) ishlatiladi — bu Aiven bilan mos keladi.
-if os.getenv("DB_HOST") and "aiven" in os.getenv("DB_HOST", ""):
+# DB_SSL_DISABLED=true bo'lsa SSL o'chiriladi (Render environment'da)
+_db_ssl_disabled = os.getenv("DB_SSL_DISABLED", "").lower() in ("true", "1", "yes")
+_db_host = os.getenv("DB_HOST", "")
+
+if not _db_ssl_disabled and _db_host and ("aiven" in _db_host or int(os.getenv("DB_PORT", "3306")) != 3306):
     try:
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE
     except AttributeError:
-        # Eski Python versiyalari uchun fallback
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)  # type: ignore
         ssl_ctx.verify_mode = ssl.CERT_NONE
     DB_CONFIG["ssl"] = ssl_ctx
-    print(f"[DB] Aiven SSL yoqildi: {os.getenv('DB_HOST')}")
+    print(f"[DB] Aiven SSL yoqildi: {_db_host}")
+else:
+    print(f"[DB] SSL o'chirildi (DB_SSL_DISABLED={_db_ssl_disabled})")

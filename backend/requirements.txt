@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+aiomysql
 asyncmy
 python-multipart
 bcrypt
@@ -10,3 +11,4 @@ PyJWT
 cryptography
 httpx
 firebase-admin
+aiofiles
