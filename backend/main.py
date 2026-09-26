@@ -41,17 +41,20 @@ async def lifespan(app: FastAPI):
     await init_tables()
 
     # Keep-alive: Render free tier uxlab qolmasligi uchun
-    # Server o'ziga har 13 daqiqada ping yuboradi
+    # Server o'ziga har 10 daqiqada ping yuboradi
     import asyncio
     async def _keep_alive():
         import httpx as _httpx
+        ping_url = os.getenv('RENDER_EXTERNAL_URL') or 'https://sartaroshxona-api-1.onrender.com'
+        health_endpoint = f"{ping_url.rstrip('/')}/health"
         while True:
-            await asyncio.sleep(13 * 60)  # 13 daqiqa
+            await asyncio.sleep(10 * 60)  # 10 daqiqa
             try:
-                async with _httpx.AsyncClient(timeout=10) as client:
-                    await client.get(f"{os.getenv('RENDER_EXTERNAL_URL', 'http://localhost:8000')}/health")
-            except Exception:
-                pass
+                async with _httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.get(health_endpoint)
+                    print(f"[KeepAlive] Ping yuborildi ({resp.status_code}) -> {health_endpoint}")
+            except Exception as e:
+                print(f"[KeepAlive] Ogohlantirish: {e}")
 
     keep_alive_task = asyncio.create_task(_keep_alive())
 
