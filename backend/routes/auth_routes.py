@@ -1,3 +1,4 @@
+import asyncmy
 # =====================================================
 # AUTH ROUTES — register, login, verify, forgot/reset password, token refresh
 # =====================================================
@@ -8,7 +9,6 @@ import uuid
 import shutil
 import datetime
 
-import aiomysql
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
 
 from config import (
@@ -62,7 +62,7 @@ async def register(user: UserRegister):
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id FROM users WHERE email=%s", (user.email,))
             if await cur.fetchone():
                 raise HTTPException(status_code=409, detail="Email already exists")
@@ -176,7 +176,7 @@ async def verify_email(data: VerifyEmail):
     code = data.code.strip()
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT id, user_id, attempts, expires_at FROM email_verifications "
                 "WHERE email=%s AND code=%s AND is_verified=FALSE ORDER BY created_at DESC LIMIT 1",
@@ -215,7 +215,7 @@ async def resend_verification(email: str):
     """Yangi tasdiqlash kodi yuborish."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id, full_name, phone, email_verified FROM users WHERE email=%s", (email,))
             user = await cur.fetchone()
             if not user:
@@ -272,7 +272,7 @@ async def phone_auth(data: PhoneAuthRequest, request: Request):
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             # 1. Foydalanuvchi mavjudligini tekshirish
             await cur.execute(
                 "SELECT u.id, u.full_name, u.email, u.role, u.phone, u.loyalty_points, "
@@ -390,7 +390,7 @@ async def login(user: UserLogin, request: Request):
     client_ip = _get_client_ip(request)
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             # Rate limiting tekshirish (jadval bo'lmasa skip)
             try:
                 block_since = datetime.datetime.now() - datetime.timedelta(minutes=LOGIN_BLOCK_MINUTES)
@@ -477,7 +477,7 @@ async def forgot_password(data: ForgotPassword):
     """Parolni tiklash uchun emailga kod yuborish."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id, full_name FROM users WHERE email=%s", (data.email,))
             user = await cur.fetchone()
             if not user:
@@ -515,7 +515,7 @@ async def reset_password(data: ResetPassword):
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT id, user_id, attempts, expires_at FROM password_resets "
                 "WHERE email=%s AND code=%s AND is_used=FALSE ORDER BY created_at DESC LIMIT 1",
@@ -587,7 +587,7 @@ async def change_password(data: ChangePassword):
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT password_hash FROM users WHERE id=%s", (data.user_id,))
             row = await cur.fetchone()
             if not row:

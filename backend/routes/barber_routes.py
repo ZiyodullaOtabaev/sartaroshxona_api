@@ -1,3 +1,4 @@
+import asyncmy
 # =====================================================
 # BARBER ROUTES — CRUD, search, status, services, working days
 # =====================================================
@@ -7,7 +8,6 @@ import shutil
 import uuid
 from typing import List
 
-import aiomysql
 from fastapi import APIRouter, HTTPException, File, UploadFile
 
 from database import get_conn, release_conn, haversine, timedelta_to_str
@@ -20,7 +20,7 @@ router = APIRouter()
 async def get_nearby_barbers(user_lat: float, user_lng: float, radius_km: float = 2.0):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, "
                 "phone, is_online, avatar_url, bio, working_hours_start, working_hours_end "
@@ -46,7 +46,7 @@ async def get_nearby_barbers(user_lat: float, user_lng: float, radius_km: float 
 async def get_all_barbers(user_lat: float = 41.3111, user_lng: float = 69.2797):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, "
                 "phone, is_online, avatar_url, bio FROM barbers "
@@ -67,7 +67,7 @@ async def get_all_barbers(user_lat: float = 41.3111, user_lng: float = 69.2797):
 async def search_barbers(query: str):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             like = f"%{query}%"
             await cur.execute(
                 "SELECT id, name, district, rating, total_reviews, lat, lng, experience, specialization, "
@@ -85,7 +85,7 @@ async def search_barbers(query: str):
 async def get_barber_detail(barber_id: int):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT b.*, u.email FROM barbers b JOIN users u ON b.user_id = u.id WHERE b.id=%s OR b.user_id=%s",
                 (barber_id, barber_id),
@@ -161,7 +161,7 @@ async def update_online(barber_id: int, is_online: bool):
 async def update_working_days(barber_id: int, days: List[int]):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id FROM barbers WHERE id=%s OR user_id=%s", (barber_id, barber_id))
             row = await cur.fetchone()
             real_barber_id = row['id'] if row else barber_id
@@ -185,7 +185,7 @@ async def update_working_days(barber_id: int, days: List[int]):
 async def get_services(barber_id: int):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT * FROM barber_services WHERE barber_id=%s AND is_active=1 ORDER BY id",
                 (barber_id,),
@@ -244,7 +244,7 @@ async def block_slot(slot: BlockedSlot):
 async def get_blocked_slots(barber_id: int, date: str):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT * FROM barber_blocked_slots WHERE barber_id=%s AND blocked_date=%s",
                 (barber_id, date),
@@ -260,7 +260,7 @@ async def get_barber_stats(barber_id: int):
     import datetime
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             today = datetime.date.today()
             month_start = today.replace(day=1)
             await cur.execute(
@@ -320,7 +320,7 @@ async def get_hairstyles(barber_id: int):
     """Sartaroshning soch dizaynlari ro'yxati."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT * FROM hairstyles WHERE barber_id=%s AND is_active=1 ORDER BY created_at DESC",
                 (barber_id,),

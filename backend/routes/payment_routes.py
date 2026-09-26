@@ -1,3 +1,4 @@
+import asyncmy
 # =====================================================
 # PAYMENT ROUTES — payments, checkout, Payme/Click callbacks, card payments
 # =====================================================
@@ -7,7 +8,6 @@ import datetime
 import base64
 import hashlib
 
-import aiomysql
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -91,7 +91,7 @@ async def calculate_payment(appointment_id: int):
     """To'lov oldidan komissiya hisobini ko'rsatish (UI uchun)."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id, price, payment_status FROM appointments WHERE id=%s", (appointment_id,))
             appt = await cur.fetchone()
             if not appt:
@@ -123,7 +123,7 @@ async def create_payment(payment: PaymentWithCommission):
         )
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id, price, customer_id, payment_status FROM appointments WHERE id=%s", (payment.appointment_id,))
             appt = await cur.fetchone()
             if not appt:
@@ -201,7 +201,7 @@ async def create_payment(payment: PaymentWithCommission):
 async def get_payment_history(customer_id: int):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT p.*, a.service_name, b.name as barber_name FROM payments p "
                 "JOIN appointments a ON p.appointment_id = a.id JOIN barbers b ON a.barber_id = b.id "
@@ -227,7 +227,7 @@ async def payment_checkout(data: CheckoutRequest):
     """Tanlangan tizim uchun checkout URL qaytaradi (ilova uni ochadi)."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id, price, payment_status FROM appointments WHERE id=%s", (data.appointment_id,))
             appt = await cur.fetchone()
             if not appt:
@@ -262,7 +262,7 @@ async def payment_status(appointment_id: int):
     """Ilova to'lov holatini polling qilish uchun."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT payment_status FROM appointments WHERE id=%s", (appointment_id,))
             appt = await cur.fetchone()
             if not appt:
@@ -313,7 +313,7 @@ async def payme_callback(request: Request):
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             if method == "CheckPerformTransaction":
                 amount = params.get("amount")
                 order_id = (params.get("account") or {}).get("order_id")
@@ -454,7 +454,7 @@ async def click_prepare(request: Request):
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT price, payment_status FROM appointments WHERE id=%s", (merchant_trans_id,))
             appt = await cur.fetchone()
             if not appt:
@@ -502,7 +502,7 @@ async def click_complete(request: Request):
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT * FROM gateway_transactions WHERE id=%s AND gateway='click'", (merchant_prepare_id,))
             tx = await cur.fetchone()
             if not tx:
@@ -588,7 +588,7 @@ async def card_pay(data: CardPay):
     """Tasdiqlangan karta tokeni bilan navbat uchun to'lov qiladi."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT price, payment_status FROM appointments WHERE id=%s", (data.appointment_id,))
             appt = await cur.fetchone()
             if not appt:
@@ -638,7 +638,7 @@ async def get_platform_earnings(days: int = 30):
     import datetime as dt
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             start_date = dt.date.today() - dt.timedelta(days=days - 1)
             # Umumiy daromad
             await cur.execute("SELECT COALESCE(SUM(amount),0) as total FROM platform_earnings")

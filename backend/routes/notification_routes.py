@@ -1,8 +1,8 @@
+import asyncmy
 # =====================================================
 # NOTIFICATION ROUTES — FCM token register, push yuborish
 # =====================================================
 
-import aiomysql
 from fastapi import APIRouter, HTTPException
 
 from config import FIREBASE_ENABLED, FIREBASE_CREDENTIALS_PATH
@@ -43,7 +43,7 @@ async def send_push_to_user(user_id: int, title: str, body: str, data: dict = No
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT fcm_token FROM user_devices WHERE user_id=%s AND is_active=1",
                 (user_id,),
@@ -97,7 +97,7 @@ async def register_device(data: DeviceRegister):
     """FCM tokenni saqlash (ilova ochilganda chaqiriladi)."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             # UPSERT — token mavjud bo'lsa yangilash, yo'q bo'lsa qo'shish
             await cur.execute(
                 "INSERT INTO user_devices (user_id, fcm_token, device_type) VALUES (%s,%s,%s) "
@@ -145,7 +145,7 @@ async def check_reminders():
     conn = await get_conn()
     sent_count = 0
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             now = datetime.datetime.now()
             tomorrow = (now + datetime.timedelta(days=1)).date()
 

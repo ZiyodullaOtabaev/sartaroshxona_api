@@ -1,3 +1,4 @@
+import asyncmy
 # =====================================================
 # LOYALTY ROUTES — 10 navbat = 1 bepul tizimi
 # =====================================================
@@ -6,7 +7,6 @@ import datetime
 import secrets
 import string
 
-import aiomysql
 from fastapi import APIRouter, HTTPException
 
 from config import (
@@ -33,7 +33,7 @@ async def award_loyalty_stamp(customer_id: int, appointment_id: int):
     """Navbat yakunlanganda avtomatik stamp berish. Internal funksiya."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             # Dublikat tekshirish
             await cur.execute(
                 "SELECT id FROM loyalty_stamps WHERE appointment_id=%s AND customer_id=%s",
@@ -105,7 +105,7 @@ async def get_loyalty_status(customer_id: int):
     """Mijozning loyalty holati — stamplar, rewardlar."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             # Aktiv stamplar soni
             await cur.execute(
                 "SELECT COUNT(*) as cnt FROM loyalty_stamps "
@@ -166,7 +166,7 @@ async def redeem_reward(data: RedeemReward):
     """Bepul navbat kodini ishlatish — navbat narxidan chegirma."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             # Reward tekshirish
             await cur.execute(
                 "SELECT id, max_value, is_redeemed, expires_at FROM loyalty_rewards "
@@ -240,7 +240,7 @@ async def get_loyalty_history(customer_id: int):
     """Mijozning stamp tarixi."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT ls.id, ls.earned_at, ls.expires_at, ls.is_used, a.service_name, b.name as barber_name "
                 "FROM loyalty_stamps ls "

@@ -1,10 +1,10 @@
+import asyncmy
 # =====================================================
 # SALON ROUTES — CRM, salon CRUD, staff, invitations, owner dashboard
 # =====================================================
 
 import datetime
 
-import aiomysql
 from fastapi import APIRouter, HTTPException, Depends
 
 from database import get_conn, release_conn, timedelta_to_str
@@ -30,7 +30,7 @@ async def _get_owner_salon(cur, user_id):
 async def list_salons(page: int = 1, limit: int = 20):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             offset = (page - 1) * limit
             await cur.execute(
                 "SELECT s.id, s.name, s.description, s.address, s.district, s.lat, s.lng, s.phone, "
@@ -48,7 +48,7 @@ async def list_salons(page: int = 1, limit: int = 20):
 async def get_salon(salon_id: int):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT * FROM salons WHERE id=%s AND is_active=1", (salon_id,))
             salon = await cur.fetchone()
             if not salon:
@@ -78,7 +78,7 @@ async def get_salon(salon_id: int):
 async def create_salon(data: SalonCreate, owner=Depends(require_owner)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id FROM salons WHERE owner_id=%s", (owner["user_id"],))
             if await cur.fetchone():
                 raise HTTPException(status_code=409, detail="Sizda allaqachon sartaroshxona mavjud")
@@ -97,7 +97,7 @@ async def create_salon(data: SalonCreate, owner=Depends(require_owner)):
 async def get_my_salon(owner=Depends(require_owner)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             salon = await _get_owner_salon(cur, owner["user_id"])
             result = dict(salon)
             result['working_hours_start'] = timedelta_to_str(result.get('working_hours_start'))
@@ -114,7 +114,7 @@ async def get_my_salon(owner=Depends(require_owner)):
 async def update_salon(data: SalonUpdate, owner=Depends(require_owner)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             salon = await _get_owner_salon(cur, owner["user_id"])
             fields, values = [], []
             for col in ("name", "description", "address", "district", "lat", "lng", "phone", "working_hours_start", "working_hours_end"):
@@ -137,7 +137,7 @@ async def update_salon(data: SalonUpdate, owner=Depends(require_owner)):
 async def get_salon_staff(owner=Depends(require_owner)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             salon = await _get_owner_salon(cur, owner["user_id"])
             await cur.execute(
                 "SELECT b.id, b.name, b.specialization, b.phone, b.rating, b.total_reviews, b.avatar_url, "
@@ -158,7 +158,7 @@ async def get_salon_staff(owner=Depends(require_owner)):
 async def invite_barber(data: StaffInvite, owner=Depends(require_owner)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             salon = await _get_owner_salon(cur, owner["user_id"])
             barber = None
             if data.barber_id:
@@ -198,7 +198,7 @@ async def invite_barber(data: StaffInvite, owner=Depends(require_owner)):
 async def remove_barber(barber_id: int, owner=Depends(require_owner)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             salon = await _get_owner_salon(cur, owner["user_id"])
             await cur.execute("SELECT id, user_id FROM barbers WHERE id=%s AND salon_id=%s", (barber_id, salon["id"]))
             barber = await cur.fetchone()
@@ -223,7 +223,7 @@ async def join_request(data: JoinRequest, auth=Depends(require_auth)):
         raise HTTPException(status_code=403, detail="Faqat sartaroshlar so'rov yubora oladi")
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id, salon_id FROM barbers WHERE user_id=%s", (auth["user_id"],))
             barber = await cur.fetchone()
             if not barber:
@@ -258,7 +258,7 @@ async def join_request(data: JoinRequest, auth=Depends(require_auth)):
 async def my_invitations(auth=Depends(require_auth)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             role = auth.get("role")
             if role == "barber":
                 await cur.execute("SELECT id FROM barbers WHERE user_id=%s", (auth["user_id"],))
@@ -300,7 +300,7 @@ async def my_invitations(auth=Depends(require_auth)):
 async def respond_invitation(invitation_id: int, data: InvitationResponse, auth=Depends(require_auth)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT i.*, s.owner_id, s.name as salon_name, b.user_id as barber_user_id "
                 "FROM salon_invitations i JOIN salons s ON i.salon_id=s.id JOIN barbers b ON i.barber_id=b.id "
@@ -340,7 +340,7 @@ async def respond_invitation(invitation_id: int, data: InvitationResponse, auth=
 async def owner_dashboard(owner=Depends(require_owner)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             salon = await _get_owner_salon(cur, owner["user_id"])
             salon_id = salon["id"]
             today = datetime.date.today()
@@ -402,7 +402,7 @@ async def owner_dashboard(owner=Depends(require_owner)):
 async def owner_revenue_report(days: int = 7, owner=Depends(require_owner)):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             salon = await _get_owner_salon(cur, owner["user_id"])
             start_date = datetime.date.today() - datetime.timedelta(days=days - 1)
             await cur.execute(
@@ -431,7 +431,7 @@ async def owner_today_appointments(owner=Depends(require_owner)):
     """Bugungi navbatlar ro'yxati (live) — vaqt, mijoz, barber, status."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             salon = await _get_owner_salon(cur, owner["user_id"])
             today = datetime.date.today()
             await cur.execute(
@@ -464,7 +464,7 @@ async def owner_search_barbers(query: str, owner=Depends(require_owner)):
     """Salonga taklif qilish uchun sartarosh qidirish (salonsiz barberlar)."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             like = f"%{query}%"
             await cur.execute(
                 "SELECT b.id, b.name, b.specialization, b.rating, b.total_reviews, b.avatar_url, "

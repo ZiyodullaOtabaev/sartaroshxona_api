@@ -1,3 +1,4 @@
+import asyncmy
 # =====================================================
 # REFERRAL ROUTES — do'stni taklif qil, ikkalaga chegirma
 # =====================================================
@@ -5,7 +6,6 @@
 import secrets
 import string
 
-import aiomysql
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
@@ -32,7 +32,7 @@ async def get_my_referral_code(user_id: int):
     """Foydalanuvchining referral kodini olish (yo'q bo'lsa yaratish)."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT referral_code, full_name, referral_balance, referral_count FROM users WHERE id=%s", (user_id,))
             user = await cur.fetchone()
             if not user:
@@ -107,7 +107,7 @@ async def get_referral_stats(user_id: int):
     """Taklif qilgan odamlar ro'yxati va holati."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT r.status, r.reward_amount, r.created_at, r.completed_at, u.full_name "
                 "FROM referrals r JOIN users u ON r.referred_id = u.id "
@@ -143,7 +143,7 @@ async def apply_referral_on_register(referred_user_id: int, referral_code: str):
         return
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             # Referrer'ni topish
             await cur.execute(
                 "SELECT id, referral_count FROM users WHERE referral_code=%s",
@@ -193,7 +193,7 @@ async def complete_referral_on_payment(customer_id: int):
     """Birinchi to'lov qilinganda referral'ni complete qilish va ikkalaga mukofot berish."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             # Bu user'ning pending referral'i bormi?
             await cur.execute(
                 "SELECT r.id, r.referrer_id, r.reward_amount FROM referrals r "
@@ -253,7 +253,7 @@ async def get_referral_balance(user_id: int):
     """Referral balansini ko'rish."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT referral_balance FROM users WHERE id=%s", (user_id,))
             user = await cur.fetchone()
             if not user:

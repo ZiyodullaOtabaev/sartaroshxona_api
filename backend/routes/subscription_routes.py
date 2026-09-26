@@ -1,10 +1,10 @@
+import asyncmy
 # =====================================================
 # SUBSCRIPTION ROUTES — Obuna va Tariflar API
 # =====================================================
 
 import datetime
 from fastapi import APIRouter, HTTPException, Depends
-import aiomysql
 from database import get_conn, release_conn
 from auth import get_current_user
 
@@ -81,7 +81,7 @@ async def get_subscription_status(user_id: int):
     """Foydalanuvchining obuna holati."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id, role FROM users WHERE id=%s", (user_id,))
             user = await cur.fetchone()
             if not user:
@@ -150,7 +150,7 @@ async def activate_subscription(
 
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id, role FROM users WHERE id=%s", (user_id,))
             user = await cur.fetchone()
             if not user:

@@ -1,8 +1,8 @@
+import asyncmy
 # =====================================================
 # ADMIN ROUTES — verification, barber status
 # =====================================================
 
-import aiomysql
 from fastapi import APIRouter, HTTPException, Header
 
 from config import ADMIN_KEY
@@ -21,7 +21,7 @@ async def get_barber_status(barber_id: int):
     """Sartaroshning tasdiqlash holatini qaytaradi."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT verification_status, salon_id FROM barbers WHERE id=%s", (barber_id,))
             row = await cur.fetchone()
             if not row:
@@ -37,7 +37,7 @@ async def admin_pending_barbers(x_admin_key: str = Header(None)):
     _check_admin(x_admin_key)
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT b.id, b.name, b.phone, b.specialization, b.experience, b.bio, b.district, "
                 "b.avatar_url, b.created_at, u.email "
@@ -61,7 +61,7 @@ async def admin_verify_barber(barber_id: int, approve: bool = True, x_admin_key:
     _check_admin(x_admin_key)
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             new_status = "approved" if approve else "rejected"
             await cur.execute("UPDATE barbers SET verification_status=%s WHERE id=%s", (new_status, barber_id))
             if cur.rowcount == 0:

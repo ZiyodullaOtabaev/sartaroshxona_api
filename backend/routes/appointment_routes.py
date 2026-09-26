@@ -1,10 +1,10 @@
+import asyncmy
 # =====================================================
 # APPOINTMENT ROUTES — booking, slots, appointments
 # =====================================================
 
 import datetime
 
-import aiomysql
 from fastapi import APIRouter, HTTPException
 
 from database import get_conn, release_conn
@@ -26,7 +26,7 @@ def _get_loyalty():
 async def get_available_slots(barber_id: int, date: str):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT working_hours_start, working_hours_end, slot_duration_minutes FROM barbers WHERE id=%s",
                 (barber_id,),
@@ -113,7 +113,7 @@ async def get_available_slots(barber_id: int, date: str):
 async def book_appointment(appt: AppointmentCreate):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("SELECT id FROM barbers WHERE id=%s", (appt.barber_id,))
             if not await cur.fetchone():
                 raise HTTPException(status_code=404, detail="Sartarosh topilmadi")
@@ -178,7 +178,7 @@ async def book_appointment(appt: AppointmentCreate):
 async def get_customer_appointments(customer_id: int):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT a.*, b.name as barber_name, b.district, b.phone as barber_phone, "
                 "b.avatar_url as barber_avatar, r.rating as my_rating "
@@ -204,7 +204,7 @@ async def get_customer_appointments(customer_id: int):
 async def get_barber_appointments(barber_id: int):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT a.*, u.full_name as customer_name, u.phone as customer_phone "
                 "FROM appointments a JOIN users u ON a.customer_id = u.id "
@@ -230,7 +230,7 @@ async def update_appointment_status(app_id: int, status: str):
         raise HTTPException(status_code=400, detail="Noto'g'ri status")
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute("UPDATE appointments SET status=%s WHERE id=%s", (status, app_id))
             if cur.rowcount == 0:
                 raise HTTPException(status_code=404, detail="Topilmadi")

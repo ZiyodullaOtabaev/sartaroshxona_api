@@ -1,8 +1,8 @@
+import asyncmy
 # =====================================================
 # SOCIAL ROUTES — reviews, favorites, notifications, chat
 # =====================================================
 
-import aiomysql
 from fastapi import APIRouter, HTTPException
 
 from database import get_conn, release_conn
@@ -53,7 +53,7 @@ async def add_review(review: ReviewCreate):
 async def get_barber_reviews(barber_id: int, limit: int = 20):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT r.*, u.full_name as customer_name FROM reviews r "
                 "JOIN users u ON r.customer_id=u.id WHERE r.barber_id=%s ORDER BY r.created_at DESC LIMIT %s",
@@ -77,7 +77,7 @@ async def get_barber_reviews(barber_id: int, limit: int = 20):
 async def get_notifications(user_id: int):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT * FROM notifications WHERE user_id=%s ORDER BY created_at DESC LIMIT 50",
                 (user_id,),
@@ -151,7 +151,7 @@ async def toggle_favorite(customer_id: int, barber_id: int):
 async def get_favorites(customer_id: int):
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT b.id, b.name, b.district, b.rating, b.specialization, b.is_online, "
                 "b.avatar_url, b.lat, b.lng, b.total_reviews "
@@ -174,7 +174,7 @@ async def send_message(data: MessageCreate):
         raise HTTPException(status_code=400, detail="Xabar bo'sh bo'lishi mumkin emas")
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "INSERT INTO messages (sender_id, receiver_id, body) VALUES (%s,%s,%s)",
                 (data.sender_id, data.receiver_id, data.body.strip()),
@@ -204,7 +204,7 @@ async def get_messages(user_id: int, other_id: int):
     """Ikki foydalanuvchi o'rtasidagi yozishmalar."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT id, sender_id, receiver_id, body, is_read, created_at FROM messages "
                 "WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) "
@@ -232,7 +232,7 @@ async def get_conversations(user_id: int):
     """Foydalanuvchining suhbatlari ro'yxati."""
     conn = await get_conn()
     try:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 "SELECT m.id, m.sender_id, m.receiver_id, m.body, m.is_read, m.created_at, "
                 "CASE WHEN m.sender_id=%s THEN m.receiver_id ELSE m.sender_id END AS partner_id "
